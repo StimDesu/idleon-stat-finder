@@ -147,6 +147,8 @@ def game_model(njs, it):
         # Pristine charms: CustomMaps NjEQ "NjTrP<t>" = "... ... ... <bonus>" (PristineBon(t) when Ninja[107][t] == 1)
         "pristine": {int(t): fnum(v.split(" ")[3]) for t, v in re.findall(r'NjTrP(\d+)="([^"]+)"', njs) if len(v.split(" ")) > 3},
         "meals": [[fnum(r[2]), r[5]] for r in L("MealINFO")],
+        "statue": [fnum(r[3]) for r in L("StatueInfo")],
+        "salt": [fnum(r[3]) for r in L("SaltLicks")],
         "gear": gear,
     }
 

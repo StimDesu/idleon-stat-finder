@@ -521,6 +521,22 @@ function model(){
   };
   M.arcade = i => { const lv = at(A("ArcadeUpg"), i), r = GM.arcade[i]; let m = lv === 101 ? 2 : lv === 102 ? 6 : 1; if (M.comp(27) === 1) m *= 2; return m * f5(r[0], r[1], r[2], lv); };
   M.meal = cat => GM.meals.reduce((s, m, i) => s + (m[1] === cat ? m[0] * at(list(A("Meals"))[0], i) : 0), 0);   // base x level (ribbons and meal multipliers not counted)
+  // StatueBonusGiven(t): level x [3], x class talents of the statue's group, x2 onyx (artifact 30 not counted), x1.5 zenith (market not counted)
+  M.statue = t => {
+    const lv = Number((ch.statue[t] || [])[0]) || 0, g = at(A("StuG"), t);
+    let v = lv * (GM.statue[t] || 0);
+    const tm = x => Math.max(1 + M.tal(1, x) / 100, 1);
+    if ([0, 2, 8, 7].includes(t)) { if (t !== 7) v *= tm(112); if (t !== 8) v *= tm(127); }
+    else if ([1, 11, 9, 14].includes(t)) { if (t !== 14) v *= tm(292); if (t !== 9) v *= tm(307); }
+    else if ([10, 6, 12, 13].includes(t)) { if (t !== 13) v *= tm(487); if (t !== 12) v *= tm(472); }
+    else if ([3, 5, 17].includes(t)) v *= tm(37);
+    if (g >= 2) v *= 2;
+    if (g >= 3) v *= 1.5;
+    return v;
+  };
+  M.salt = i => at(A("SaltLick"), i) > 0 ? at(A("SaltLick"), i) * GM.salt[i] : 0;
+  M.lv = lv0(charN)[0] || 0;
+  M.lowest = acct.chars.every(c => c.n === charN || (lv0(c.n)[0] || 0) > M.lv);   // strictly the lowest class level
   M.cloud = n => { const w = asArr(A("WeeklyBoss")) || {}; return Number(w["d_" + n]) === -1 ? 1 : 0; };
   return (acct.model = M);
 }
@@ -627,7 +643,79 @@ function dropFormula(){
     { en: "Multipliers", ru: "Множители", sum: "×" + num(mul), terms: mults },
   ] };
 }
-const FORMULAS = { luk: () => statFormula("LUK"), str: () => statFormula("STR"), agi: () => statFormula("AGI"), wis: () => statFormula("WIS"), drop: dropFormula };
+function expFormula(){   // ExpMulti(0): class EXP multiplier from monsters
+  const M = model(), T = (w, t) => M.tal(w, t), A = M.A;
+  const luk = statFormula("LUK").total;
+  const lukX = luk < 1e3 ? (Math.pow(luk + 1, .37) - 1) / 30 : (luk - 1e3) / (luk + 2500) * .8 + .3963;
+  const task = at(list(list(A("TaskZZ2"))[0]), 2), lv = M.lv, wb = asArr(A("WeeklyBoss")) || {};
+  let low = 0, l3 = 0;
+  if (task > 0 && M.lowest) { low = 3 * task + M.vault(12); if (M.superBit(19)) l3 = 50; }
+  const l2 = [
+    ["Lowest-level character: task bonus", "Самый низкий персонаж: бонус задания", low],
+    ["Below Lv 50: card set", "Ниже 50 ур.: набор карт", lv < 50 ? M.cardSet(0) : 0],
+    ["Below Lv 120: meals", "Ниже 120 ур.: блюда", lv < 120 ? M.meal("Clexp") : 0],
+    ["Weekly boss (max 150)", "Еженедельный босс (не больше 150)", wb.c != null ? Math.min(150, Number(wb.c) || 0) : 0],
+    ["Low level (below 10 / 30 / 50)", "Низкий уровень (до 10 / 30 / 50)", lv < 10 ? 150 : lv < 30 ? 100 : lv < 50 ? 50 : 0],
+    ["Card set: Dmg, Drop and EXP", "Набор карт: урон, добыча и опыт", M.cardSet(5)],
+    ["Divinity minor bonus", "Малый бонус божества", null],
+  ];
+  const l4 = [["Grimoire 24", "Гримуар 24", M.grim(24)], ["Vault 3", "Хранилище 3", M.vault(3)], ["Vault 35 × log(option 345)", "Хранилище 35 × log(опция 345)", M.vault(35) * getLOG(M.ola(345))],
+    ["Compass 51, caverns, Summoning win 23", "Компас 51, пещеры, победа в призыве 23", null]];
+  const sum = a => a.reduce((s, t) => s + (t[2] || 0), 0);
+  const l6 = [
+    ["Card Spring event × 2", "Карта весеннего ивента × 2", 2 * M.cardLv("springEvent1")],
+    ["Companions 3, 50, 47, 111, 128", "Компаньоны 3, 50, 47, 111, 128", M.comp(3) + M.comp(50) + M.comp(47) + M.comp(111) + M.comp(128)],
+    ["Grimoire, vault (see above)", "Гримуар, хранилище (выше)", sum(l4)],
+    ["Account option 421", "Опция аккаунта 421", M.ola(421)],
+    ["Stamps: class EXP", "Штампы: опыт класса", M.stamp("classxp")],
+    ["Golden food, Owl, voting, monument, sets, exotic, friends, shimmer, minehead", "Золотая еда, сова, голосование, монумент, сеты, экзотика, друзья, мерцание, minehead", null],
+  ];
+  const adds = [
+    ["Gear and obols: % XP from monsters", "Снаряжение и оболы: % опыта с монстров", M.etc("4")],
+    ["Star signs", "Знаки зодиака", M.sign("MainXP")],
+    ["Vials MonsterEXP", "Флаконы MonsterEXP", M.vial("MonsterEXP")],
+    ["Bubble expACTIVE (equipped)", "Пузырь expACTIVE (если надет)", M.bubble("expACTIVE")],
+    ["Cards", "Карты", M.card(44)],
+    ["Level and task bonuses (see below)", "За уровень и задания (ниже)", sum(l2)],
+    ["Statue EXP", "Статуя опыта", M.statue(10)],
+    ["Talent 632", "Талант 632", T(1, 632)],
+    ["Shrine (on its map)", "Святилище (на своей карте)", M.shrine(5)],
+    ["Salt lick 3", "Солонец 3", M.salt(3)],
+    ["Prayers (minus curse of 9)", "Молитвы (минус проклятие 9)", M.prayer(0, 0) + M.prayer(2, 0) - M.prayer(9, 1)],
+    ["Achievements 57, 357, 61, 124, 188, 286", "Достижения 57, 357, 61, 124, 188, 286", M.ach(57) + 20 * M.ach(357) + 3 * M.ach(61) + 2 * M.ach(124) + 5 * M.ach(188) + 25 * M.ach(286)],
+    ["Arcade 12", "Аркада 12", M.arcade(12)],
+    ["Sigil 8", "Сигил 8", M.sigil(8)],
+    ["Talent of the best character (55)", "Талант лучшего персонажа (55)", M.getbonus2(55)],
+    ["Other account bonuses (see below)", "Прочие бонусы аккаунта (ниже)", sum(l6)],
+    ["Post office, boost food, flurbo shop, shiny pets, MSA", "Почта, еда-бустер, магазин флурбо, сияющие питомцы, MSA", null],
+  ];
+  const lukPart = lukX * (1 + T(1, 35) / 100) / 1.8 * 100;
+  const base = lukPart / 100 + sum(adds) / 100 + 1;
+  const cm = (1 + 9 * M.comp(37)) * (1 + M.comp(33)) * (1 + 4 * M.comp(160)) * (1 + M.comp(32)) * (1 + .4 * M.comp(168)) * (1 + M.comp(34)) * (1 + M.comp(145)) * (1 + Math.min(.5, M.comp(128))) * (1 + .1 * M.superBit(63)) * Math.max(1, Math.min(1.01, 1 + M.comp(50) / 2500));
+  const spel = Math.max(1, Math.pow(1.03, list(list(A("Spelunk"))[6]).length) * M.superBit(24));
+  const mults = [
+    ["Task super bit 19 (+50%)", "Супербит 19 для задания (+50%)", 1 + l3 / 100],
+    ["Companions 37, 33, 160, 32, 168, 34, 145, 128, 50 and super bit 63", "Компаньоны 37, 33, 160, 32, 168, 34, 145, 128, 50 и супербит 63", Math.max(1, cm)],
+    ["Gear: class EXP multi (84) and (78)", "Снаряжение: множитель опыта класса (84) и (78)", (1 + M.etc("84") / 100) * (1 + M.etc("78") / 100)],
+    ["Card: class EXP multi", "Карта: множитель опыта класса", 1 + M.card(100) / 100],
+    ["Arcade 60", "Аркада 60", 1 + M.arcade(60) / 100],
+    ["Vial 7classexp", "Флакон 7classexp", 1 + M.vial("7classexp") / 100],
+    ["Card set: class EXP multi", "Набор карт: множитель опыта класса", 1 + M.cardSet(12) / 100],
+    ["Weekly boss cloud 70", "Облако еженедельного босса 70", 1 + 5 * M.cloud(70) / 100],
+    ["Spelunking lore (super bit 24)", "Книга спелеологии (супербит 24)", spel],
+    ["Crucible, menagerie, jelly, research grid, stickers, zenith, titan kills, arcane map, big fish, coral, bubba, sushi, fountain, RG statue, workbench", "Тигель, менажерея, желе, сетка исследований, наклейки, зенит, убийства титанов, тессеракт, большая рыба, кораллы, бубба, суши, фонтан, статуя RG, верстак", null],
+  ];
+  const mul = mults.reduce((s, t) => s * (t[2] == null ? 1 : t[2]), 1);
+  const total = base * mul;
+  return { total, show: "×" + num(total), groups: [
+    { en: "From LUK (" + num(luk) + ")", ru: "От удачи (" + num(luk) + ")", sum: "+" + num(lukPart) + "%", terms: [["LUK curve × (1 + talent 35) / 1.8", "Кривая удачи × (1 + талант 35) / 1.8", lukPart]] },
+    { en: "Added (%)", ru: "Сумма (%)", sum: "+" + num(sum(adds)) + "%", terms: adds },
+    { en: "In 'level and task bonuses'", ru: "В строке «за уровень и задания»", sum: "+" + num(sum(l2)) + "%", terms: l2 },
+    { en: "In 'other account bonuses'", ru: "В строке «прочие бонусы аккаунта»", sum: "+" + num(sum(l6)) + "%", terms: l6 },
+    { en: "Multipliers", ru: "Множители", sum: "×" + num(mul), terms: mults },
+  ] };
+}
+const FORMULAS = { classexp: expFormula, luk: () => statFormula("LUK"), str: () => statFormula("STR"), agi: () => statFormula("AGI"), wis: () => statFormula("WIS"), drop: dropFormula };
 function formulaHtml(id){
   if (!acct || !FORMULAS[id]) return "";
   let f;
