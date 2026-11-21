@@ -867,7 +867,51 @@ function skillExpFormula(){   // SkillStats("AllSkillxpz") (+% to every skill's 
   return { total, show: "+" + num(total) + "%", groups: [{ en: "Added to every skill's EXP (%)", ru: "Прибавка к опыту каждого навыка (%)", sum: "+" + num(total) + "%", terms },
     { en: "Multiplier of the skill part", ru: "Множитель навыковой части", sum: "×" + num(prodT(mult)), terms: mult }] };
 }
-const FORMULAS = { skilleff: skillEffFormula, skillexp: skillExpFormula, move: moveFormula, hp: hpFormula, mp: mpFormula, critc: critcFormula, critd: critdFormula, def: defFormula, acc: accFormula, wp: wpFormula, classexp: expFormula, luk: () => statFormula("LUK"), str: () => statFormula("STR"), agi: () => statFormula("AGI"), wis: () => statFormula("WIS"), drop: dropFormula };
+function coinsFormula(){   // ArbitraryCode("MonsterCash"): multiplier of coins dropped by monsters
+  const M = model(), T = (w, t) => M.tal(w, t), A = M.A;
+  const ev = n => String(list(A("OptLacc"))[311] || "").includes(letter(n)) ? 1 : 0;   // EventShopOwned
+  const st = k => statFormula(k).total;
+  const add = [["Talents 657, 22", "Таланты 657, 22", T(1, 657) + T(1, 22)], ["Vials MonsterCash", "Флаконы MonsterCash", M.vial("MonsterCash")],
+    ["Gear unique stat", "Уникальный стат снаряжения", M.etc("3")], ["Cards (+ card w5b1)", "Карты (+ карта w5b1)", M.card(11) + 7 * M.cardLv("w5b1")],
+    ["Arcade 10, 11", "Аркада 10, 11", M.arcade(10) + M.arcade(11)],
+    ["Guild 8 × (1 + world of the map)", "Гильдия 8 × (1 + мир карты)", M.guild(8) * (1 + Math.floor(Number(A("CurrentMap_" + charN)) / 50))],
+    ["Vault 17 × log(option 340), vault 2", "Хранилище 17 × log(опция 340), хранилище 2", M.vault(17) * getLOG(M.ola(340)) + M.vault(2)],
+    ["Achievements 235, 350, 376", "Достижения 235, 350, 376", 5 * M.ach(235) + 10 * M.ach(350) + 20 * M.ach(376)],
+    ["Account option 420", "Опция аккаунта 420", M.ola(420)], ["Vault 70 × cards collected", "Хранилище 70 × собрано карт", M.vault(70) * list(A("Cards1")).length],
+    ["Flurbo shop, post office, talents 643/644, golden food, vault kill bonuses", "Флурбо, почта, таланты 643/644, золотая еда, бонусы хранилища за убийства", null]];
+  const bubStat = (M.bubble("CashSTR") || 0) * Math.floor(st("STR") / 250) + (M.bubble("CashAGI") || 0) * Math.floor(st("AGI") / 250) + (M.bubble("CashWIS") || 0) * Math.floor(st("WIS") / 250);
+  const mults = [["Bubbles per 250 STR/AGI/WIS", "Пузыри за каждые 250 STR/AGI/WIS", 1 + bubStat / 100],
+    ["Companions 24, 45, 159", "Компаньоны 24, 45, 159", (1 + Math.min(4, M.comp(24))) * (1 + Math.min(4, M.comp(45))) * (1 + Math.min(4, M.comp(159)))],
+    ["Event shop 9, 20", "Магазин ивентов 9, 20", (1 + .5 * ev(9)) * (1 + .6 * ev(20))],
+    ["Gear: coin multi (77, 100)", "Снаряжение: множитель монет (77, 100)", (1 + M.etc("77") / 100) * (1 + M.etc("100") / 100)],
+    ["Best talent 433 × log(option 362)", "Лучший талант 433 × log(опция 362)", 1 + Math.max(1, M.getbonus2(433)) * getLOG(M.ola(362)) / 100],
+    ["Meals", "Блюда", 1 + M.meal("Cash") / 100], ["Statue 19", "Статуя 19", 1 + M.statue(19) / 100],
+    ["Pristine charm 16", "Безупречный амулет 16", 1 + M.pristine(16) / 100], ["Prayer 8", "Молитва 8", 1 + M.prayer(8, 0) / 100],
+    ["Added bonuses (below)", "Суммарные бонусы (ниже)", 1 + sumT(add) / 100],
+    ["Coin drop multi, sushi, research grid, gold set, gambit, artifact 1, pet arena, lab 9, divinity, crops", "Множитель монет, суши, сетка, золотой сет, гамбит, артефакт 1, арена питомцев, лаборатория 9, божество, урожай", null]];
+  const total = prodT(mults);
+  return { total, show: "×" + num(total), groups: [{ en: "Multipliers", ru: "Множители", sum: "×" + num(total), terms: mults },
+    { en: "In 'added bonuses'", ru: "В строке «суммарные бонусы»", sum: "+" + num(sumT(add)) + "%", terms: add }] };
+}
+function fightAfkFormula(){   // AFKgainrates("Fighting")
+  const M = model(), T = (w, t) => M.tal(w, t), A = M.A;
+  const ev = n => String(list(A("OptLacc"))[311] || "").includes(letter(n)) ? 1 : 0;
+  const all = [["Task (first characters)", "Задание (первые персонажи)", at(list(list(A("TaskZZ2"))[1]), 2) > charN ? 2 : 0], ["Arcade 6", "Аркада 6", M.arcade(6)],
+    ["Companions 6, 25", "Компаньоны 6, 25", M.comp(6) + M.comp(25)], ["Shrine (on its map)", "Святилище (на своей карте)", M.shrine(8)],
+    ["Card w6d3", "Карта w6d3", 1.5 * M.cardLv("w6d3")], ["Event shop 5", "Магазин ивентов 5", 20 * ev(5)], ["Vault 23", "Хранилище 23", M.vault(23)],
+    ["Compass 57, sets, flurbo, divinity, talent 650, Summoning wins, golden food, Roo, voting", "Компас 57, сеты, флурбо, божество, талант 650, победы, золотая еда, Ру, голосование", null]];
+  const terms = [["Base", "База", 40], ["Family bonus 8", "Семейный бонус 8", M.fam(8)], ["Talents 88, 268, 448, 621, 79", "Таланты 88, 268, 448, 621, 79", T(1, 88) + T(1, 268) + T(1, 448) + T(1, 621) + T(1, 79)],
+    ["Bribe 3", "Взятка 3", M.bribe(3)], ["Card set", "Набор карт", M.cardSet(10)], ["All-activity AFK (below)", "AFK всех занятий (ниже)", sumT(all)],
+    ["Cards (+ card w6d1)", "Карты (+ карта w6d1)", M.card(43) + M.cardLv("w6d1")], ["Gear unique stats", "Уникальные статы снаряжения", M.etc("20") + M.etc("59")],
+    ["Star signs", "Знаки зодиака", M.sign("FightAFK")], ["Guild 4", "Гильдия 4", M.guild(4)], ["Prayers (minus curse 12)", "Молитвы (минус проклятие 12)", M.prayer(4, 0) - M.prayer(12, 1)],
+    ["Chip", "Чип", M.chipVal("fafk")], ["Post office", "Почта", null]];
+  const mult = [["Gear: AFK multi (92)", "Снаряжение: множитель AFK (92)", 1 + M.etc("92") / 100], ["Arcane map", "Тессеракт", null]];
+  const total = Math.max(.01, sumT(terms) / 100 * prodT(mult));
+  return { total, show: num(total * 100) + "%", groups: [{ en: "Sum (%)", ru: "Сумма (%)", sum: num(sumT(terms)) + "%", terms },
+    { en: "In 'all-activity AFK'", ru: "В строке «AFK всех занятий»", sum: "+" + num(sumT(all)) + "%", terms: all },
+    { en: "Multipliers", ru: "Множители", sum: "×" + num(prodT(mult)), terms: mult }] };
+}
+const FORMULAS = { coins: coinsFormula, fightafk: fightAfkFormula, skilleff: skillEffFormula, skillexp: skillExpFormula, move: moveFormula, hp: hpFormula, mp: mpFormula, critc: critcFormula, critd: critdFormula, def: defFormula, acc: accFormula, wp: wpFormula, classexp: expFormula, luk: () => statFormula("LUK"), str: () => statFormula("STR"), agi: () => statFormula("AGI"), wis: () => statFormula("WIS"), drop: dropFormula };
 function formulaHtml(id){
   if (!acct || !FORMULAS[id]) return "";
   let f;
