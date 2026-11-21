@@ -541,7 +541,7 @@ function model(){
   M.lv = lv0(charN)[0] || 0;
   M.maxLv = Math.max(...acct.chars.map(c => lv0(c.n)[0] || 0));                                        // CalcTalentMAP[620]
   M.maxBeginnerLv = Math.max(0, ...acct.chars.filter(c => cls(c.n) < 6).map(c => lv0(c.n)[0] || 0));   // CalcTalentMAP[616]
-  M.talentCalc = t => t === 620 ? Math.min(M.tal(1, 620), Math.floor(M.maxLv / 10)) : t === 616 ? M.tal(1, 616) * M.maxBeginnerLv : null;
+  M.talentCalc = t => t === 620 ? Math.min(M.tal(1, 620), Math.floor(M.maxLv / 10)) : t === 616 ? Math.min(M.tal(1, 616), Math.floor(M.maxBeginnerLv / 10)) : null;
   M.quests = () => {   // completed quests (each quest counted once over all characters)
     const done = new Set();
     acct.chars.forEach(c => Object.entries(asArr(A("QuestComplete_" + c.n)) || {}).forEach(([k, v]) => { if (Number(v) === 1) done.add(k); }));
@@ -553,6 +553,13 @@ function model(){
     return [5, 10, 2, 4, 1, 2][i] * (1 + M.comp(51)) * (1 + all / 100) * Math.max(0, Math.ceil((M.ola(255) - i) / 6));
   };
   M.shimmer = i => M.ola(i);
+  // BoxRewards (PostOfficeINFO "BonusAmount"): box levels are POu_N; bonus 2 and 3 start after [13] / [14] levels
+  const pou = list(A("POu_" + charN)).map(Number), box = {};
+  GM.post.forEach((r, t) => [0, 1, 2].forEach(I => {
+    const lv = Math.round((pou[t] || 0) - (I === 1 ? r[3] : I === 2 ? r[4] : 0));
+    if (lv > 0) box[r[5][I]] = (box[r[5][I]] || 0) + f5(r[I][0], r[I][1], r[I][2], lv);
+  }));
+  M.box = k => box[k] || 0;
   // Holes("MonumentROGbonuses", t, i): caverns monuments (t 0 Bravery, 1 Justice, 2 Wisdom); cosmos only counted for Bravery
   const holes = list(A("Holes")).map(list), hv = (r, i) => at(holes[r], i);
   const fount = t => { const m = at(list(holes[32])[t], 13); return Math.round((m === 0 ? 1 : 1.5 + .5 * m) * at(list(holes[31])[t], 13) * (GM.fount13[t] || 0)); };
@@ -581,7 +588,7 @@ function statFormula(k){   // "STR" | "AGI" | "WIS" | "LUK"
              LUK: { pctTal: 21, pctStamp: "PctLUK", obolTal: 36, base: 13, g2: 54, stampB: "BaseLUK", etcB: "54", fam: 4, card: 2, sigil: 3, bub: "A4", arc: 22, tot: "TotalLUK", etcP: "17", pTal: null, pris: 5, pSign: "pctLUK", pBub: null, box: null } }[k];
   const gearMul = 1 + (T(1, P.pctTal) + M.stamp(P.pctStamp)) / 100, obolMul = 1 + (T(1, P.obolTal) + 40 * M.superBit(2)) / 100;
   const gear = M.gearStat(k) * gearMul, obol = M.obolStat(k) * obolMul;
-  const allStat = Math.floor(M.meal("Stat") + M.guild(1));   // + post office "20a" (not counted)
+  const allStat = Math.floor(M.box("20a") + M.meal("Stat") + M.guild(1));   // + post office "20a" (not counted)
   const allPct = .1 * Math.floor(10 * (M.vial("AllStatPCT") + M.stamp("AllStatPct") + M.card(82) + M.fam(72) + M.ach(309) + Math.min(15, getLOG(M.ola(172)) * T(1, 653)) + M.ach(362) + 10 * Math.floor((98 + M.ola(232)) / 100) + M.set("MARBIGLASS_SET")));
   const flat = [
     ["Gear and tools" + ` (x${num(gearMul)})`, "Снаряжение и инструменты" + ` (×${num(gearMul)})`, gear],
@@ -605,7 +612,7 @@ function statFormula(k){   // "STR" | "AGI" | "WIS" | "LUK"
   if (k === "STR") flat.push(["Talents 98, 203", "Таланты 98, 203", T(1, 98) + T(1, 203)], ["Talent 142 (2nd)", "Талант 142 (2-й)", T(2, 142)]);
   if (k === "AGI") flat.push(["Talents 278, 428", "Таланты 278, 428", T(1, 278) + T(1, 428)], ["Talent 367 (2nd)", "Талант 367 (2-й)", T(2, 367)]);
   if (k === "WIS") flat.push(["Talents 459, 593", "Таланты 459, 593", T(1, 459) + T(1, 593)], ["Talent 532 (2nd)", "Талант 532 (2-й)", T(2, 532)]);
-  flat.push(["Post office boxes", "Почтовые ящики", null], ["Shiny pets", "Сияющие питомцы", null], ["Orion owl", "Сова Орион", M.owl(5)]);
+  flat.push(["Post office boxes", "Почтовые ящики", M.box({ STR: "23b", AGI: "21b", WIS: "22b", LUK: "15c" }[k]) + (k === "LUK" ? M.box("LUK") : 0)], ["Shiny pets", "Сияющие питомцы", null], ["Orion owl", "Сова Орион", M.owl(5)]);
   const pct = [
     ["Gear: % " + k, "Снаряжение: % " + k, M.etc(P.etcP)],
     ["Gear: % all stats", "Снаряжение: % ко всем", M.etc("46")],
@@ -649,7 +656,7 @@ function dropFormula(){
     ["Companions 3, 50, 132", "Компаньоны 3, 50, 132", M.comp(3) + M.comp(50) + M.comp(132)],
     ["Stamps", "Штампы", M.stamp("DropRate")], ["Equinox dream 10", "Сон равноденствия 10", 5 * M.dream(10)],
     ["Cards and others (see below)", "Карты и прочее (ниже)", t2.reduce((s, t) => s + t[2], 0)],
-    ["Post office", "Почта", null], ["Shiny pets", "Сияющие питомцы", null], ["Summoning wins", "Победы в призыве", null],
+    ["Post office", "Почта", M.box("DropRate")], ["Shiny pets", "Сияющие питомцы", null], ["Summoning wins", "Победы в призыве", null],
     ["Tome", "Том", null], ["Research grid", "Сетка исследований", null], ["Golden food, Owl, Lank rank, voting, caverns, farming, emperor, sets, friends, legend, spelunking shop, Royal Guardian", "Золотая еда, сова, Lank, голосование, пещеры, фермерство, император, сеты, друзья, легенда, магазин спелеологии, Royal Guardian", null],
   ];
   const s1 = t1.reduce((s, t) => s + (t[2] || 0), 0);
@@ -722,7 +729,7 @@ function expFormula(){   // ExpMulti(0): class EXP multiplier from monsters
     ["Sigil 8", "Сигил 8", M.sigil(8)],
     ["Talent of the best character (55)", "Талант лучшего персонажа (55)", M.getbonus2(55)],
     ["Other account bonuses (see below)", "Прочие бонусы аккаунта (ниже)", sum(l6)],
-    ["Post office, boost food, flurbo shop, shiny pets, MSA", "Почта, еда-бустер, магазин флурбо, сияющие питомцы, MSA", null],
+    ["Post office", "Почта", M.box("monsterExp")], ["Boost food, flurbo shop, shiny pets, MSA", "Еда-бустер, магазин флурбо, сияющие питомцы, MSA", null],
   ];
   const lukPart = lukX * (1 + T(1, 35) / 100) / 1.8 * 100;
   const base = lukPart / 100 + sum(adds) / 100 + 1;
@@ -764,7 +771,7 @@ function defFormula(){   // TotalStats("Defence")
     [`Gear and obols × (1 + ${num(pctIn)}%: bubble, vault, cards, companion)`, `Снаряжение и оболы × (1 + ${num(pctIn)}%: пузырь, хранилище, карты, компаньон)`, gear * (1 + pctIn / 100)],
     ["Meals", "Блюда", M.meal("Def")],
     ["Talent 122 (2nd)", "Талант 122 (2-й)", T(2, 122)],
-    ["Post office", "Почта", null],
+    ["Post office", "Почта", M.box("def")],
   ];
   const sum = a => a.reduce((s, t) => s + (t[2] || 0), 0);
   const pct = [["Talent 9", "Талант 9", T(1, 9)], ["Gear %", "Снаряжение %", M.etc("7")], ["Star signs", "Знаки зодиака", M.sign("DefPct")],
@@ -789,7 +796,7 @@ function accFormula(){   // TotalStats("Accuracy")
   const M = model();
   const terms = [["Base", "База", 2], ["Vials baseACC", "Флаконы baseACC", M.vial("baseACC")], ["Cards", "Карты", M.card(23)], ["Gear unique stat", "Уникальный стат снаряжения", M.etc("28")],
     ["Stamps", "Штампы", M.stamp("BaseAcc")], ["Vault 4", "Хранилище 4", M.vault(4)], ["Gear and obols", "Снаряжение и оболы", M.gearStat("Accuracy") + M.obolStat("Accuracy")],
-    ["Post office, golden food", "Почта, золотая еда", null]];
+    ["Post office", "Почта", M.box("acc")], ["Golden food", "Золотая еда", null]];
   const base = terms.reduce((s, t) => s + (t[2] || 0), 0);
   // PlayerAccTot: the class's second stat (beginner LUK, warrior WIS, archer STR, mage AGI) drives the shown accuracy
   const cls = Number(M.A("CharacterClass_" + charN)) || 0, first = cls < 6 ? 1 : 6 + 12 * Math.floor((cls - 6) / 12);
@@ -822,7 +829,7 @@ function wpFormula(){   // TotalStats("Weapon_Power")
     ["Talents per 10 skill levels (140, 170, 320, 500, 530)", "Таланты за каждые 10 ур. навыков (140, 170, 320, 500, 530)",
       T(1, 140) * Math.floor(S(10) / 10) + T(1, 170) * Math.floor(S(15) / 10) + T(1, 320) * Math.floor(S(13) / 10) + T(1, 500) * Math.floor(S(14) / 10) + T(1, 530) * Math.floor(S(12) / 10)],
     ["Talent 365 × log(pets stored)", "Талант 365 × log(питомцев в хранилище)", T(1, 365) * getLOG(at(list(list(M.A("PetsStored"))[0]), 2))],
-    ["Post office, flurbo shop, boost food, talent 616", "Почта, флурбо, еда-бустер, талант 616", null],
+    ["Post office", "Почта", M.box("12a")], ["Talent 616 (max 1 per 10 levels of the best beginner)", "Талант 616 (не больше 1 за 10 ур. лучшего новичка)", M.talentCalc(616)], ["Flurbo shop, boost food", "Флурбо, еда-бустер", null],
   ];
   const total = terms.reduce((s, t) => s + (t[2] || 0), 0);
   return { total, show: num(total), groups: [{ en: "Sum", ru: "Сумма", sum: num(total), terms }] };
@@ -834,11 +841,11 @@ function hpFormula(){   // PlayerHPmax
   const base = [["Base", "База", 15], ["Cards", "Карты", M.card(1)], ["Bubble BaseHP", "Пузырь BaseHP", M.bubble("BaseHP")], ["Stamps", "Штампы", M.stamp("BaseHP")],
     ["Statue 4", "Статуя 4", M.statue(4)], ["Talents 0, 642", "Таланты 0, 642", T(1, 0) + T(1, 642)],
     [`STR (${num(str)}) × talent 95, ^1.05`, `Сила (${num(str)}) × талант 95, ^1.05`, Math.pow(str * (1 + T(1, 95) / 100), 1.05)],
-    ["Boost food, post office", "Еда-бустер, почта", null]];
+    ["Post office", "Почта", M.box("baseHP")], ["Boost food", "Еда-бустер", null]];
   const mults = [["Talents 92, 272 + gear %", "Таланты 92, 272 + снаряжение %", 1 + (T(1, 92) + T(1, 272) + M.etc("15")) / 100],
     ["Shrine (on its map)", "Святилище (на своей карте)", 1 + M.shrine(1) / 100],
     ["Family bonus 18 + cards", "Семейный бонус 18 + карты", 1 + (M.fam(18) + M.card(8)) / 100],
-    ["Star signs", "Знаки зодиака", 1 + M.sign("TotalHP") / 100],
+    ["Star signs", "Знаки зодиака", 1 + M.sign("TotalHP") / 100], ["Post office", "Почта", 1 + M.box("pctHP") / 100],
     ["Golden food, post office, buffs", "Золотая еда, почта, баффы", null]];
   const total = sumT(base) * prodT(mults);
   return { total, show: num(total), groups: [{ en: "Base HP", ru: "Базовое HP", sum: num(sumT(base)), terms: base }, { en: "Multipliers", ru: "Множители", sum: "×" + num(prodT(mults)), terms: mults }] };
@@ -846,8 +853,8 @@ function hpFormula(){   // PlayerHPmax
 function mpFormula(){   // PlayerMPmax
   const M = model(), T = (w, t) => M.tal(w, t), wis = statFormula("WIS").total;
   const base = [["Base", "База", 10], ["Cards", "Карты", M.card(3)], ["Bubble BaseMP", "Пузырь BaseMP", M.bubble("BaseMP")], ["Stamps", "Штампы", M.stamp("BaseMP")],
-    ["Talent 1", "Талант 1", T(1, 1)], ["WIS", "Мудрость (WIS)", wis], ["Post office", "Почта", null]];
-  const mults = [["Talents 452, 272", "Таланты 452, 272", 1 + (T(1, 452) + T(1, 272)) / 100], ["Cards (+ post office)", "Карты (+ почта)", 1 + M.card(29) / 100]];
+    ["Talent 1", "Талант 1", T(1, 1)], ["WIS", "Мудрость (WIS)", wis], ["Post office", "Почта", M.box("baseMP")]];
+  const mults = [["Talents 452, 272", "Таланты 452, 272", 1 + (T(1, 452) + T(1, 272)) / 100], ["Cards + post office", "Карты + почта", 1 + (M.card(29) + M.box("pctMP")) / 100]];
   const total = sumT(base) * prodT(mults);
   return { total, show: num(total), groups: [{ en: "Base MP", ru: "Базовое MP", sum: num(sumT(base)), terms: base }, { en: "Multipliers", ru: "Множители", sum: "×" + num(prodT(mults)), terms: mults }] };
 }
@@ -859,7 +866,7 @@ function critcFormula(){   // CritChance
     ["Talents 640, 267, 447", "Таланты 640, 267, 447", T(1, 640) + T(1, 267) + T(1, 447)], ["Gear unique stat", "Уникальный стат снаряжения", M.etc("23")],
     ["Prayer 11", "Молитва 11", M.prayer(11, 0)], ["Meals", "Блюда", M.meal("Crit")], ["Statue 13", "Статуя 13", M.statue(13)],
     ["Star signs", "Знаки зодиака", M.sign("CritChance")], ["Achievement 184", "Достижение 184", 5 * M.ach(184)],
-    ["Bubble CritChance", "Пузырь CritChance", M.bubble("CritChance")], ["Post office, talent 645", "Почта, талант 645", null]];
+    ["Bubble CritChance", "Пузырь CritChance", M.bubble("CritChance")], ["Post office", "Почта", M.box("critchance")], ["Talent 645", "Талант 645", null]];
   const total = sumT(terms);
   return { total, show: num(total) + "%", groups: [{ en: "Sum (%)", ru: "Сумма (%)", sum: num(total) + "%", terms }] };
 }
@@ -954,7 +961,7 @@ function fightAfkFormula(){   // AFKgainrates("Fighting")
     ["Bribe 3", "Взятка 3", M.bribe(3)], ["Card set", "Набор карт", M.cardSet(10)], ["All-activity AFK (below)", "AFK всех занятий (ниже)", sumT(all)],
     ["Cards (+ card w6d1)", "Карты (+ карта w6d1)", M.card(43) + M.cardLv("w6d1")], ["Gear unique stats", "Уникальные статы снаряжения", M.etc("20") + M.etc("59")],
     ["Star signs", "Знаки зодиака", M.sign("FightAFK")], ["Guild 4", "Гильдия 4", M.guild(4)], ["Prayers (minus curse 12)", "Молитвы (минус проклятие 12)", M.prayer(4, 0) - M.prayer(12, 1)],
-    ["Chip", "Чип", M.chipVal("fafk")], ["Post office", "Почта", null]];
+    ["Chip", "Чип", M.chipVal("fafk")], ["Post office", "Почта", M.box("fightAFK")]];
   const mult = [["Gear: AFK multi (92)", "Снаряжение: множитель AFK (92)", 1 + M.etc("92") / 100], ["Arcane map", "Тессеракт", null]];
   const total = Math.max(.01, sumT(terms) / 100 * prodT(mult));
   return { total, show: num(total * 100) + "%", groups: [{ en: "Sum (%)", ru: "Сумма (%)", sum: num(sumT(terms)) + "%", terms },
@@ -988,28 +995,28 @@ function effFormula(sk){
   if (sk === "Mining") {
     const s = st("STR"), t142 = 1 + T(1, 142) / 100;
     base = [["Base", "База", 12], ["Tool power^1.3", "Сила инструмента^1.3", Math.pow(tool, 1.3)], [`STR (${num(s)})^0.6`, `Сила (${num(s)})^0.6`, Math.pow(s + 1, .6) * t142], ["Stamps", "Штампы", M.stamp("BaseMinEff")], ["All skills base", "База всех навыков", allBase]];
-    mults = [["Mining level / 200", "Уровень добычи / 200", 1 + lv / 200], ["STR curve", "Кривая силы", 1 + Math.pow(s / 100, .35) * t142],
+    mults = [["Mining level / 200", "Уровень добычи / 200", 1 + lv / 200], ["Post office", "Почта", 1 + M.box("MinEffPct") / 100], ["STR curve", "Кривая силы", 1 + Math.pow(s / 100, .35) * t142],
       ["Talent 85 + gear", "Талант 85 + снаряжение", 1 + (T(1, 85) + M.etc("10") + M.set("COPPER_SET")) / 100], ["Cards, star signs, vials", "Карты, знаки, флаконы", 1 + (M.card(24) + M.sign("MiningEff") + M.vial("MinEff") + M.monument(0, 0)) / 100],
       ["Tool power %", "Сила инструмента %", 1 + tool / 100], ["Bubble MinEff", "Пузырь MinEff", 1 + (M.bubble("MinEff") || 0) / 100],
       ["Talent 101 × (atom + log copper)", "Талант 101 × (атом + log меди)", 1 + T(1, 101) * (atomBonus(1) + getLOG(ownedItem("Copper"))) / 100]];
   } else if (sk === "Choppin") {
     const w = st("WIS"), a = 1 + T(1, 462) / 100, b = 1 + T(1, 532) / 100;
     base = [["Base", "База", 8], ["Tool power^1.3", "Сила инструмента^1.3", Math.pow(tool, 1.3)], [`WIS (${num(w)})^0.6`, `Мудрость (${num(w)})^0.6`, Math.pow((w + 2) * a * b, .6)], ["Stamps", "Штампы", M.stamp("BaseChopEff")], ["All skills base", "База всех навыков", allBase]];
-    mults = [["Choppin level / 200", "Уровень рубки / 200", 1 + lv / 200], ["Star signs", "Знаки зодиака", 1 + M.sign("ChopEff") / 100], ["Bubble ChopEff + monument", "Пузырь ChopEff + монумент", 1 + ((M.bubble("ChopEff") || 0) + M.monument(2, 0)) / 100],
+    mults = [["Choppin level / 200", "Уровень рубки / 200", 1 + lv / 200], ["Post office", "Почта", 1 + M.box("ChopEffPct") / 100], ["Star signs", "Знаки зодиака", 1 + M.sign("ChopEff") / 100], ["Bubble ChopEff + monument", "Пузырь ChopEff + монумент", 1 + ((M.bubble("ChopEff") || 0) + M.monument(2, 0)) / 100],
       ["WIS curve", "Кривая мудрости", 1 + Math.pow(w * a / 100, .35) * b], ["Talent 445 + gear", "Талант 445 + снаряжение", 1 + (T(1, 445) + M.etc("11") + M.set("COPPER_SET")) / 100],
       ["Cards, vials, achievement 352", "Карты, флаконы, достижение 352", 1 + (M.card(27) + M.vial("ChopEff") + 10 * M.ach(352)) / 100], ["Tool power %", "Сила инструмента %", 1 + tool / 100],
       ["Talent 461 × log leaves", "Талант 461 × log листьев", 1 + T(1, 461) * getLOG(ownedItem("Leaf1")) / 100]];
   } else if (sk === "Fishing") {
     const s = st("STR"), t142 = 1 + T(1, 142) / 100;
     base = [["Tool power^1.3", "Сила инструмента^1.3", Math.pow(tool, 1.3)], [`STR (${num(s)})^0.6`, `Сила (${num(s)})^0.6`, Math.pow(s, .6) * t142], ["Stamps", "Штампы", M.stamp("BaseFishEff")], ["All skills base", "База всех навыков", allBase]];
-    mults = [["Fishing level / 200", "Уровень рыбалки / 200", 1 + lv / 200],
+    mults = [["Fishing level / 200", "Уровень рыбалки / 200", 1 + lv / 200], ["Post office", "Почта", 1 + M.box("FishEffPct") / 100],
       ["STR curve (talent 142, bribe 29, stamp per level)", "Кривая силы (талант 142, взятка 29, штамп за уровень)", 1 + Math.pow(s / 100, .35) * (1 + (T(1, 142) + 15 * M.bribe(29) + M.stamp("FishEffPerLv") * lv + M.set("PLATINUM_SET")) / 100)],
       ["Tool power %", "Сила инструмента %", 1 + tool / 100], ["Cards, vials, gear", "Карты, флаконы, снаряжение", 1 + (M.card(30) + M.vial("FishEff") + M.etc("19")) / 100],
       ["Talent 85", "Талант 85", 1 + T(1, 85) / 100], ["Star signs", "Знаки зодиака", 1 + M.sign("FishEff") / 100]];
   } else {
     const a = st("AGI"), t = 1 + T(1, 296) / 100, t2 = 1 + T(1, 367) / 100;
     base = [["Tool power^1.3", "Сила инструмента^1.3", Math.pow(tool, 1.3)], [`AGI (${num(a)})^0.6`, `Ловкость (${num(a)})^0.6`, Math.pow(a * t, .6) * t2], ["Stamps", "Штампы", M.stamp("BaseCatchEff")], ["All skills base", "База всех навыков", allBase]];
-    mults = [["Catching level / 200", "Уровень ловли / 200", 1 + lv / 200], ["AGI curve", "Кривая ловкости", 1 + Math.pow(a * t / 100, .35) * t2],
+    mults = [["Catching level / 200", "Уровень ловли / 200", 1 + lv / 200], ["Post office", "Почта", 1 + M.box("CatchEffPct") / 100], ["AGI curve", "Кривая ловкости", 1 + Math.pow(a * t / 100, .35) * t2],
       ["Cards, vials, gear, achievement 351", "Карты, флаконы, снаряжение, достижение 351", 1 + (M.card(32) + M.vial("CatchEff") + M.etc("18") + 10 * M.ach(351) + M.set("PLATINUM_SET") + M.monument(1, 0)) / 100],
       ["Star signs", "Знаки зодиака", 1 + M.sign("CatchingEff") / 100], ["Talent 295 × (atom + log oak logs)", "Талант 295 × (атом + log дуба)", 1 + T(1, 295) * (atomBonus(1) + getLOG(ownedItem("OakTree"))) / 100],
       ["Tool power % + achievement 74", "Сила инструмента % + достижение 74", 1 + (tool + Math.min(5, 5 * M.ach(74))) / 100], ["Talent 263", "Талант 263", 1 + T(1, 263) / 100]];
