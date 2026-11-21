@@ -389,7 +389,8 @@ function model(){
   M.tal = (w, t, n) => {
     const c = n == null ? ch : acct.chars[n], lv = Number(c.sl[t]) || 0, p = GM.tal[t];
     if (lv <= 0 || !p) return 0;
-    const bonus = n == null && M._allTal !== 0 ? allTalLv() : 0;
+    const banned = (t >= 49 && t <= 59) || [149, 374, 539, 505].includes(t);   // TalentBannedforAllLV also lists t > 614, but the in-game stats match only with star talents boosted
+    const bonus = n == null && M._allTal !== 0 && !banned ? allTalLv() : 0;
     return w === 1 ? f5(p[2], p[0], p[1], lv + bonus) : f5(p[5], p[3], p[4], lv + bonus);
   };
   M.getbonus2 = t => Math.max(0, ...acct.chars.map(c => M.tal(1, t, c.n)));   // best of all characters
@@ -553,6 +554,14 @@ function model(){
     return [5, 10, 2, 4, 1, 2][i] * (1 + M.comp(51)) * (1 + all / 100) * Math.max(0, Math.ceil((M.ola(255) - i) / 6));
   };
   M.shimmer = i => M.ola(i);
+  // CalcTalentMAP[42]/[43]: a Maestro (class 3-5) gives skill EXP / efficiency (talents 42 / 43 at the Maestro's level)
+  // to the other characters for every skill where they are below the Maestro (index r = skill Lv0[r+1])
+  const mae = acct.chars.filter(c => cls(c.n) >= 3 && cls(c.n) < 6).pop();
+  M.maestro = (which, r) => {
+    if (!mae || mae.n === charN || !((lv0(charN)[r + 1] || 0) < (lv0(mae.n)[r + 1] || 0))) return 0;
+    const t = which === 42 ? 42 : 43, p = GM.tal[t];
+    return f5(p[2], p[0], p[1], Number(mae.sl[t]) || 0);
+  };
   // BoxRewards (PostOfficeINFO "BonusAmount"): box levels are POu_N; bonus 2 and 3 start after [13] / [14] levels
   const pou = list(A("POu_" + charN)).map(Number), box = {};
   GM.post.forEach((r, t) => [0, 1, 2].forEach(I => {
@@ -995,30 +1004,30 @@ function effFormula(sk){
   if (sk === "Mining") {
     const s = st("STR"), t142 = 1 + T(1, 142) / 100;
     base = [["Base", "База", 12], ["Tool power^1.3", "Сила инструмента^1.3", Math.pow(tool, 1.3)], [`STR (${num(s)})^0.6`, `Сила (${num(s)})^0.6`, Math.pow(s + 1, .6) * t142], ["Stamps", "Штампы", M.stamp("BaseMinEff")], ["All skills base", "База всех навыков", allBase]];
-    mults = [["Mining level / 200", "Уровень добычи / 200", 1 + lv / 200], ["Post office", "Почта", 1 + M.box("MinEffPct") / 100], ["STR curve", "Кривая силы", 1 + Math.pow(s / 100, .35) * t142],
+    mults = [["Mining level / 200", "Уровень добычи / 200", 1 + lv / 200], ["Post office + Maestro", "Почта + Маэстро", 1 + (M.box("MinEffPct") + M.maestro(43, 0)) / 100], ["STR curve", "Кривая силы", 1 + Math.pow(s / 100, .35) * t142],
       ["Talent 85 + gear", "Талант 85 + снаряжение", 1 + (T(1, 85) + M.etc("10") + M.set("COPPER_SET")) / 100], ["Cards, star signs, vials", "Карты, знаки, флаконы", 1 + (M.card(24) + M.sign("MiningEff") + M.vial("MinEff") + M.monument(0, 0)) / 100],
-      ["Tool power %", "Сила инструмента %", 1 + tool / 100], ["Bubble MinEff", "Пузырь MinEff", 1 + (M.bubble("MinEff") || 0) / 100],
+      ["Tool power %", "Сила инструмента %", 1 + tool / 100], ["Bubble MinEff × log(max HP)", "Пузырь MinEff × log(макс. HP)", 1 + (M.bubble("MinEff") || 0) * getLOG(hpFormula().total) / 100],
       ["Talent 101 × (atom + log copper)", "Талант 101 × (атом + log меди)", 1 + T(1, 101) * (atomBonus(1) + getLOG(ownedItem("Copper"))) / 100]];
   } else if (sk === "Choppin") {
     const w = st("WIS"), a = 1 + T(1, 462) / 100, b = 1 + T(1, 532) / 100;
     base = [["Base", "База", 8], ["Tool power^1.3", "Сила инструмента^1.3", Math.pow(tool, 1.3)], [`WIS (${num(w)})^0.6`, `Мудрость (${num(w)})^0.6`, Math.pow((w + 2) * a * b, .6)], ["Stamps", "Штампы", M.stamp("BaseChopEff")], ["All skills base", "База всех навыков", allBase]];
-    mults = [["Choppin level / 200", "Уровень рубки / 200", 1 + lv / 200], ["Post office", "Почта", 1 + M.box("ChopEffPct") / 100], ["Star signs", "Знаки зодиака", 1 + M.sign("ChopEff") / 100], ["Bubble ChopEff + monument", "Пузырь ChopEff + монумент", 1 + ((M.bubble("ChopEff") || 0) + M.monument(2, 0)) / 100],
+    mults = [["Choppin level / 200", "Уровень рубки / 200", 1 + lv / 200], ["Post office + Maestro", "Почта + Маэстро", 1 + (M.box("ChopEffPct") + M.maestro(43, 2) + M.sign("ChopEff")) / 100], ["Bubble ChopEff × log(max MP) + monument", "Пузырь ChopEff × log(макс. MP) + монумент", 1 + ((M.bubble("ChopEff") || 0) * getLOG(mpFormula().total) + M.monument(2, 0)) / 100],
       ["WIS curve", "Кривая мудрости", 1 + Math.pow(w * a / 100, .35) * b], ["Talent 445 + gear", "Талант 445 + снаряжение", 1 + (T(1, 445) + M.etc("11") + M.set("COPPER_SET")) / 100],
       ["Cards, vials, achievement 352", "Карты, флаконы, достижение 352", 1 + (M.card(27) + M.vial("ChopEff") + 10 * M.ach(352)) / 100], ["Tool power %", "Сила инструмента %", 1 + tool / 100],
       ["Talent 461 × log leaves", "Талант 461 × log листьев", 1 + T(1, 461) * getLOG(ownedItem("Leaf1")) / 100]];
   } else if (sk === "Fishing") {
     const s = st("STR"), t142 = 1 + T(1, 142) / 100;
     base = [["Tool power^1.3", "Сила инструмента^1.3", Math.pow(tool, 1.3)], [`STR (${num(s)})^0.6`, `Сила (${num(s)})^0.6`, Math.pow(s, .6) * t142], ["Stamps", "Штампы", M.stamp("BaseFishEff")], ["All skills base", "База всех навыков", allBase]];
-    mults = [["Fishing level / 200", "Уровень рыбалки / 200", 1 + lv / 200], ["Post office", "Почта", 1 + M.box("FishEffPct") / 100],
+    mults = [["Fishing level / 200", "Уровень рыбалки / 200", 1 + lv / 200], ["Post office + Maestro", "Почта + Маэстро", 1 + (M.box("FishEffPct") + M.maestro(43, 3)) / 100],
       ["STR curve (talent 142, bribe 29, stamp per level)", "Кривая силы (талант 142, взятка 29, штамп за уровень)", 1 + Math.pow(s / 100, .35) * (1 + (T(1, 142) + 15 * M.bribe(29) + M.stamp("FishEffPerLv") * lv + M.set("PLATINUM_SET")) / 100)],
       ["Tool power %", "Сила инструмента %", 1 + tool / 100], ["Cards, vials, gear", "Карты, флаконы, снаряжение", 1 + (M.card(30) + M.vial("FishEff") + M.etc("19")) / 100],
       ["Talent 85", "Талант 85", 1 + T(1, 85) / 100], ["Star signs", "Знаки зодиака", 1 + M.sign("FishEff") / 100]];
   } else {
     const a = st("AGI"), t = 1 + T(1, 296) / 100, t2 = 1 + T(1, 367) / 100;
     base = [["Tool power^1.3", "Сила инструмента^1.3", Math.pow(tool, 1.3)], [`AGI (${num(a)})^0.6`, `Ловкость (${num(a)})^0.6`, Math.pow(a * t, .6) * t2], ["Stamps", "Штампы", M.stamp("BaseCatchEff")], ["All skills base", "База всех навыков", allBase]];
-    mults = [["Catching level / 200", "Уровень ловли / 200", 1 + lv / 200], ["Post office", "Почта", 1 + M.box("CatchEffPct") / 100], ["AGI curve", "Кривая ловкости", 1 + Math.pow(a * t / 100, .35) * t2],
+    mults = [["Catching level / 200", "Уровень ловли / 200", 1 + lv / 200], ["Post office + Maestro + star signs", "Почта + Маэстро + знаки", 1 + (M.box("CatchEffPct") + M.maestro(43, 5) + M.sign("CatchingEff")) / 100], ["AGI curve", "Кривая ловкости", 1 + Math.pow(a * t / 100, .35) * t2],
       ["Cards, vials, gear, achievement 351", "Карты, флаконы, снаряжение, достижение 351", 1 + (M.card(32) + M.vial("CatchEff") + M.etc("18") + 10 * M.ach(351) + M.set("PLATINUM_SET") + M.monument(1, 0)) / 100],
-      ["Star signs", "Знаки зодиака", 1 + M.sign("CatchingEff") / 100], ["Talent 295 × (atom + log oak logs)", "Талант 295 × (атом + log дуба)", 1 + T(1, 295) * (atomBonus(1) + getLOG(ownedItem("OakTree"))) / 100],
+      ["Talent 295 × (atom + log oak logs)", "Талант 295 × (атом + log дуба)", 1 + T(1, 295) * (atomBonus(1) + getLOG(ownedItem("OakTree"))) / 100],
       ["Tool power % + achievement 74", "Сила инструмента % + достижение 74", 1 + (tool + Math.min(5, 5 * M.ach(74))) / 100], ["Talent 263", "Талант 263", 1 + T(1, 263) / 100]];
   }
   mults.push(["All skills multiplier", "Множитель всех навыков", all.total], ["Gear power stats, post office, star talents, monument, rift, voting, golden food", "Силы снаряжения, почта, звёздные таланты, монумент, рифт, голосование, золотая еда", null]);
@@ -1036,9 +1045,10 @@ function sexpFormula(sk){
   }[sk];
   terms.push(["Rift, voting, Roo, star talents", "Рифт, голосование, Ру, звёздные таланты", null]);
   const mult = 1 + M.comp(32);
-  const total = Math.max(.1, mult * (1 + sumT(terms) / 100) + all / 100);
+  const mae = M.maestro(42, { Mining: 0, Choppin: 2, Fishing: 3, Catching: 5 }[sk]);
+  const total = Math.max(.1, mult * (1 + sumT(terms) / 100) + (all + mae) / 100);
   return { total, show: "×" + num(total), groups: [{ en: "Skill bonuses (× companion 32)", ru: "Бонусы навыка (× компаньон 32)", sum: "+" + num(sumT(terms)) + "%", terms },
-    { en: "All skills EXP", ru: "Опыт всех навыков", sum: "+" + num(all) + "%", terms: [["See 'Skill EXP'", "См. «Опыт навыков»", all]] }] };
+    { en: "All skills EXP", ru: "Опыт всех навыков", sum: "+" + num(all + mae) + "%", terms: [["See 'Skill EXP'", "См. «Опыт навыков»", all], ["Maestro (talent 42)", "Маэстро (талант 42)", mae]] }] };
 }
 function slotPower(slot){
   const ch = model().ch, id = ch.worn[1][0][slot], up = asArr(ch.worn[1][1][slot] != null ? ch.worn[1][1][slot] : ch.worn[1][1][String(slot)]) || {};
