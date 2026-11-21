@@ -536,7 +536,8 @@ function model(){
   };
   M.salt = i => at(A("SaltLick"), i) > 0 ? at(A("SaltLick"), i) * GM.salt[i] : 0;
   M.lv = lv0(charN)[0] || 0;
-  M.lowest = acct.chars.every(c => c.n === charN || (lv0(c.n)[0] || 0) > M.lv);   // strictly the lowest class level
+  M.skill = i => lv0(charN)[i] || 0;
+  M.bribe = i => at(A("BribeStatus"), i) === 1 ? GM.bribe[i] : 0;   // GetBribeBonus  M.lowest = acct.chars.every(c => c.n === charN || (lv0(c.n)[0] || 0) > M.lv);   // strictly the lowest class level
   M.cloud = n => { const w = asArr(A("WeeklyBoss")) || {}; return Number(w["d_" + n]) === -1 ? 1 : 0; };
   return (acct.model = M);
 }
@@ -715,7 +716,69 @@ function expFormula(){   // ExpMulti(0): class EXP multiplier from monsters
     { en: "Multipliers", ru: "Множители", sum: "×" + num(mul), terms: mults },
   ] };
 }
-const FORMULAS = { classexp: expFormula, luk: () => statFormula("LUK"), str: () => statFormula("STR"), agi: () => statFormula("AGI"), wis: () => statFormula("WIS"), drop: dropFormula };
+function defFormula(){   // TotalStats("Defence")
+  const M = model(), T = (w, t) => M.tal(w, t);
+  const gear = M.gearStat("Defence") + M.obolStat("Defence");   // obols x ObolMISCmulti (menagerie, not counted)
+  const pctIn = M.bubble("DefPct") + M.vault(46) + M.card(15) + M.comp(21) + 3 * M.cardLv("w6a2");
+  const flat = [
+    ["Cards", "Карты", M.card(26)],
+    ["Bubble DefPct (up to class level)", "Пузырь DefPct (не больше уровня класса)", Math.min(M.lv, M.bubble("DefPct"))],
+    ["Stamps: base defence", "Штампы: базовая защита", M.stamp("BaseDef")],
+    ["Gear unique stat", "Уникальный стат снаряжения", M.etc("50")],
+    ["Arcade 1", "Аркада 1", M.arcade(1)],
+    ["Statue 7", "Статуя 7", M.statue(7)],
+    [`Gear and obols × (1 + ${num(pctIn)}%: bubble, vault, cards, companion)`, `Снаряжение и оболы × (1 + ${num(pctIn)}%: пузырь, хранилище, карты, компаньон)`, gear * (1 + pctIn / 100)],
+    ["Meals", "Блюда", M.meal("Def")],
+    ["Talent 122 (2nd)", "Талант 122 (2-й)", T(2, 122)],
+    ["Post office", "Почта", null],
+  ];
+  const sum = a => a.reduce((s, t) => s + (t[2] || 0), 0);
+  const pct = [["Talent 9", "Талант 9", T(1, 9)], ["Gear %", "Снаряжение %", M.etc("7")], ["Star signs", "Знаки зодиака", M.sign("DefPct")],
+    ["Card set", "Набор карт", M.cardSet(4)], ["Chip", "Чип", M.chipVal("def")], ["Golden food, buffs, flurbo shop, Amarok set", "Золотая еда, баффы, флурбо, сет Amarok", null]];
+  const mults = [
+    ["Shrine + bribe", "Святилище + взятка", 1 + (M.shrine(1) + M.bribe(22)) / 100],
+    ["Prayer curses 15, 16", "Проклятия молитв 15, 16", Math.max(.05, 1 - (M.prayer(15, 1) + M.prayer(16, 1)) / 100)],
+    ["Percent bonuses (below)", "Процентные бонусы (ниже)", 1 + sum(pct) / 100],
+    ["Divinity, voting", "Божество, голосование", null],
+  ];
+  const after = [["Vault 5", "Хранилище 5", M.vault(5)], ["Roo bonus", "Бонус Ру", null]];
+  const F = Math.floor(sum(flat)), mul = mults.reduce((s, t) => s * (t[2] == null ? 1 : t[2]), 1);
+  const total = F * mul + sum(after);
+  return { total, show: num(total), groups: [
+    { en: "Flat (floored)", ru: "Плоская часть (округл. вниз)", sum: num(F), terms: flat },
+    { en: "Multipliers", ru: "Множители", sum: "×" + num(mul), terms: mults },
+    { en: "In 'percent bonuses'", ru: "В строке «процентные бонусы»", sum: "+" + num(sum(pct)) + "%", terms: pct },
+    { en: "Added after", ru: "Добавляется после", sum: "+" + num(sum(after)), terms: after },
+  ] };
+}
+function accFormula(){   // TotalStats("Accuracy")
+  const M = model();
+  const terms = [["Base", "База", 2], ["Vials baseACC", "Флаконы baseACC", M.vial("baseACC")], ["Cards", "Карты", M.card(23)], ["Gear unique stat", "Уникальный стат снаряжения", M.etc("28")],
+    ["Stamps", "Штампы", M.stamp("BaseAcc")], ["Vault 4", "Хранилище 4", M.vault(4)], ["Gear and obols", "Снаряжение и оболы", M.gearStat("Accuracy") + M.obolStat("Accuracy")],
+    ["Post office, golden food", "Почта, золотая еда", null]];
+  const total = terms.reduce((s, t) => s + (t[2] || 0), 0);
+  return { total, show: num(total), groups: [{ en: "Sum", ru: "Сумма", sum: num(total), terms }] };
+}
+function wpFormula(){   // TotalStats("Weapon_Power")
+  const M = model(), T = (w, t) => M.tal(w, t), S = M.skill;
+  const pctIn = M.chipVal("weppow") + (M.bubble("W1") || 0) + (M.bubble("A1") || 0) + (M.bubble("M1") || 0);
+  const gear = M.gearStat("Weapon_Power") + M.obolStat("Weapon_Power");
+  const terms = [
+    ["Base", "База", 5],
+    ["Cards (+ card w5b2 level)", "Карты (+ уровень карты w5b2)", M.card(18) + M.cardLv("w5b2")],
+    ["Guild 3", "Гильдия 3", M.guild(3)], ["Sigil 17", "Сигил 17", M.sigil(17)],
+    [`Gear and obols × (1 + ${num(pctIn)}%: chip, bubbles W1/A1/M1)`, `Снаряжение и оболы × (1 + ${num(pctIn)}%: чип, пузыри W1/A1/M1)`, gear * (1 + pctIn / 100)],
+    ["Vials WeaponPOW", "Флаконы WeaponPOW", M.vial("WeaponPOW")], ["Family bonus 16", "Семейный бонус 16", M.fam(16)],
+    ["Star signs", "Знаки зодиака", M.sign("WepPow")], ["Arcade 17", "Аркада 17", M.arcade(17)],
+    ["Talents per 10 skill levels (140, 170, 320, 500, 530)", "Таланты за каждые 10 ур. навыков (140, 170, 320, 500, 530)",
+      T(1, 140) * Math.floor(S(10) / 10) + T(1, 170) * Math.floor(S(15) / 10) + T(1, 320) * Math.floor(S(13) / 10) + T(1, 500) * Math.floor(S(14) / 10) + T(1, 530) * Math.floor(S(12) / 10)],
+    ["Talent 365 × log(pets stored)", "Талант 365 × log(питомцев в хранилище)", T(1, 365) * getLOG(at(list(list(M.A("PetsStored"))[0]), 2))],
+    ["Post office, flurbo shop, boost food, talent 616", "Почта, флурбо, еда-бустер, талант 616", null],
+  ];
+  const total = terms.reduce((s, t) => s + (t[2] || 0), 0);
+  return { total, show: num(total), groups: [{ en: "Sum", ru: "Сумма", sum: num(total), terms }] };
+}
+const FORMULAS = { def: defFormula, acc: accFormula, wp: wpFormula, classexp: expFormula, luk: () => statFormula("LUK"), str: () => statFormula("STR"), agi: () => statFormula("AGI"), wis: () => statFormula("WIS"), drop: dropFormula };
 function formulaHtml(id){
   if (!acct || !FORMULAS[id]) return "";
   let f;

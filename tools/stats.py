@@ -27,7 +27,8 @@ CATEGORIES = [
     {"en": "Character: combat", "ru": "Персонаж: бой", "stats": [
         S("dmg", "Damage", "Урон", r"\bdamage\b|\bDMG\b|weapon power",
           r"boss|crit|monsters? (deal|do)|take damage|damage taken|enemies|dodge|tempest form|in \w+ form|" + MINIGAME),
-        S("boss", "Boss damage", "Урон по боссам", r"boss(es)? damage|damage (to(ward)?s?|against) (all )?bosses"),
+        S("wp", "Weapon power", "Сила оружия", r"weapon power|\bwep(on)? ?pow"),
+        S("boss","Boss damage", "Урон по боссам", r"boss(es)? damage|damage (to(ward)?s?|against) (all )?bosses"),
         S("acc", "Accuracy", "Точность", r"accuracy", MINIGAME),
         S("def", "Defence", "Защита", r"defen[cs]e|\bDEF\b", MINIGAME),
         S("critc", "Critical chance", "Шанс крита", r"crit(ical)?( hit)? chance|chance to crit"),

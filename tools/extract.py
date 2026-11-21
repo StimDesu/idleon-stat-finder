@@ -149,6 +149,7 @@ def game_model(njs, it):
         "meals": [[fnum(r[2]), r[5]] for r in L("MealINFO")],
         "statue": [fnum(r[3]) for r in L("StatueInfo")],
         "salt": [fnum(r[3]) for r in L("SaltLicks")],
+        "bribe": [fnum(r[5]) for r in L("BribeDescriptions")],
         "gear": gear,
     }
 
