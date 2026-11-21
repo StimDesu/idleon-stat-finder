@@ -150,6 +150,9 @@ def game_model(njs, it):
         "statue": [fnum(r[3]) for r in L("StatueInfo")],
         "salt": [fnum(r[3]) for r in L("SaltLicks")],
         "bribe": [fnum(r[5]) for r in L("BribeDescriptions")],
+        # golden foods: item -> [Effect, Amount]; NinjaInfo[29] lists the Jade Emporium's "eternal" golden foods (item at 2+3i)
+        "gfood": {k: [d.get("Effect"), fnum(d.get("Amount", 0))] for k, d in it.items() if d.get("Type") == "GOLDEN_FOOD"},
+        "gfoodEmp": [L("NinjaInfo")[29][2 + 3 * i] for i in range(len(L("NinjaInfo")[29]) // 3)],
         # Post office boxes: per bonus I (0..2) [type, x1, x2] at [3+4I, 1+4I, 2+4I]; levels needed before bonus 2/3 at [13]/[14]; keys [16+I]
         "post": [[[r[3 + 4 * I], fnum(r[1 + 4 * I]), fnum(r[2 + 4 * I])] for I in range(3)] + [fnum(r[13]), fnum(r[14]), r[16:19]] for r in L("PostOffUpgradeInfo")],
         # W5 caverns monuments: MonumentROGbonuses(t,i) base = HolesInfo[37][10t+i]; cosmos 0/0; fountain upgrade 13 per water
