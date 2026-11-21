@@ -91,6 +91,8 @@ mark{background:var(--gold-bg);color:inherit;border-radius:2px}
 .hint{color:var(--muted);font-size:13px}
 .empty{color:var(--muted);padding:12px}
 footer{color:var(--muted);font-size:12px}
+.beta{font:600 11px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--gold);background:var(--gold-bg);border-radius:4px;padding:2px 6px;vertical-align:middle}
+.beta-note{margin:0;padding:8px 12px;border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:6px;background:var(--panel);color:var(--muted);font-size:13px}
 .formula{background:var(--panel2)}
 .ftot{font:600 22px var(--mono);color:var(--ok)}
 .fg{display:grid;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
@@ -106,7 +108,7 @@ footer{color:var(--muted);font-size:12px}
 <body>
 <div class="wrap">
   <header>
-    <h1><span data-i="title"></span> <small data-i="subtitle"></small></h1>
+    <h1><span data-i="title"></span> <span class="beta">beta</span> <small data-i="subtitle"></small></h1>
     <div class="lang" role="group" aria-label="Language">
       <button type="button" data-lang="en">EN</button><button type="button" data-lang="ru">RU</button>
     </div>
@@ -128,6 +130,8 @@ footer{color:var(--muted);font-size:12px}
     </div>
   </div>
 
+  <p class="beta-note" data-i="beta_note"></p>
+
   <div class="layout">
     <aside class="card side">
       <input id="q" type="search" autocomplete="off" spellcheck="false">
@@ -144,6 +148,7 @@ const D = __DATA__;
 const T = {
   en: {
     title: "IdleOn Stat Finder", subtitle: "every place in the game that raises a stat",
+    beta_note: "Beta: the formulas are being ported from the game step by step. Some systems are not counted yet (marked “not counted”), so a total can be lower than in the game.",
     nick_btn: "Load by username", nick_hint: "Your profile published on idleonefficiency.com. Publish it there again to refresh.",
     or: "or paste the raw JSON of your save", parse: "Load", open: "Open file…", forget: "Forget save",
     ok: "Save loaded.", ok_nick: a => `Loaded ${a.name}` + (a.when ? ` (published ${a.when}).` : "."), nick_loading: n => `Loading ${n}…`, ok_saved: "Last save loaded.", forgot: "Save forgotten.",
@@ -167,6 +172,7 @@ const T = {
   },
   ru: {
     title: "IdleOn: поиск бонусов", subtitle: "все места в игре, где можно поднять стат",
+    beta_note: "Бета-версия: формулы переносятся из игры постепенно. Часть систем ещё не учитывается (помечены «не считается»), поэтому итог может быть ниже, чем в игре.",
     nick_btn: "Загрузить по нику", nick_hint: "Берётся профиль, опубликованный на idleonefficiency.com. Чтобы обновить данные, опубликуйте профиль там заново.",
     or: "или вставьте raw JSON сохранения", parse: "Загрузить", open: "Открыть файл…", forget: "Забыть сохранение",
     ok: "Сохранение загружено.", ok_nick: a => `Загружен ${a.name}` + (a.when ? ` (опубликован ${a.when}).` : "."), nick_loading: n => `Загружаю ${n}…`, ok_saved: "Загружено прошлое сохранение.", forgot: "Сохранение забыто.",
