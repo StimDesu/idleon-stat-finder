@@ -83,6 +83,74 @@ SOURCES = [
     ("RANDOlist", "Other bonuses (misc lists)", "Прочие бонусы (разные списки)", None, None),
     ("RandoListo2", "Other bonuses (misc lists)", "Прочие бонусы (разные списки)", None, None),
 ]
+def custom_map(njs, name):
+    """CustomMaps.<name>: `Ma.<name>=function(){var e=new l;return e.h[0]="...",...,e}` -> list by id."""
+    m = re.search(r"\." + name + r"=function\(\)\{var e=new l;return (.*?),e\}", njs)
+    d = {int(k): v for k, v in re.findall(r'e\.h\[(\d+)\]="([^"]*)"', m.group(1))}
+    return [d.get(i, "") for i in range(max(d) + 1)]
+
+
+def star_sign_table(njs):
+    """v.StarSigns() adds fixed numbers per equipped sign: `if(D.contains(StarSignsDL,"14")){...=5+N(StarSigns.h.Drop)...}`.
+    Returns {sign index: [[key, value], ...]}."""
+    i = njs.find("._customBlock_StarSigns=function")
+    body = njs[i:i + 60000]
+    marks = [(m.start(), m.group(1)) for m in re.finditer(r'D\.contains\([^,]*StarSignsDL,"(\d+)"\)', body)]
+    out = {}
+    for n, (pos, sid) in enumerate(marks):
+        seg = body[pos:marks[n + 1][0] if n + 1 < len(marks) else pos + 3000]
+        pairs = re.findall(r'(-?\d+(?:\.\d+)?)\+c\.asNumber\(a\.engine\.getGameAttribute\("DNSM"\)\.h\.StarSigns\.h\.(\w+)\)', seg)
+        if pairs:
+            out.setdefault(int(sid), [])
+            for v, k in pairs:
+                if [k, fnum(v)] not in out[int(sid)]:
+                    out[int(sid)].append([k, fnum(v)])
+    return out
+
+
+def game_model(njs, it):
+    """Tables the page needs to rebuild the game's own bonus maps (TotalStats, AlchBubbles, StampBonusOfTypeX...)."""
+    L = lambda n: literal(njs, n)
+    alch = L("AlchemyDescription")
+    cards = {}
+    for grp in L("CardStuff"):
+        for r in grp:
+            if isinstance(r, list) and len(r) > 4:
+                cards[r[0]] = [r[3], fnum(r[4]), fnum(r[2])]
+    gear = {}
+    for k, d in it.items():
+        if d.get("kind") == "Equip":
+            gear[k] = {f: d[f] for f in ("STR", "AGI", "WIS", "LUK", "Defence", "Weapon_Power", "Speed",
+                                          "UQ1txt", "UQ1val", "UQ2txt", "UQ2val") if d.get(f) not in (None, 0, "0", "")}
+    stamps = [[str(it.get("Stamp%s%d" % (c, n), {}).get("desc_line1", "")) for n in range(1, 200)
+               if "Stamp%s%d" % (c, n) in it] for c in "ABC"]
+    return {
+        "tal": [[fnum(r[1][0]), fnum(r[1][1]), r[1][2], fnum(r[1][3]), fnum(r[1][4]), r[1][5]] for r in L("TalentDescriptions")],
+        "bub": [[[r[3], fnum(r[1]), fnum(r[2]), r[15]] for r in alch[c]] for c in range(4)],
+        "vial": [[r[3], fnum(r[1]), fnum(r[2]), r[11] if len(r) > 11 else ""] for r in alch[4]],
+        "stamps": stamps,
+        "signs": star_sign_table(njs),
+        "cards": cards,
+        "idCard": custom_map(njs, "IDforCardBonus"), "idEtc": custom_map(njs, "IDforETCbonus"),
+        "idCardSet": custom_map(njs, "IDforCardSETbonus"),
+        "fam": [[fnum(r[1]), fnum(r[2]), r[3], fnum(r[4]), fnum(r[5]), r[6]] for r in L("ClassFamilyBonuses")],
+        "famLv": [fnum(r[1]) for r in L("ClassAccountBonus")],
+        "guild": [[r[6], fnum(r[4]), fnum(r[5])] for r in L("GuildBonuses")],
+        "prayer": [[fnum(r[3]), fnum(r[4])] for r in L("PrayerInfo")],
+        "shrine": [[fnum(r[2]), fnum(r[3])] for r in L("ShrineInfo")],
+        "sigil": [[fnum(r[3]), fnum(r[4]), fnum(r[8]), fnum(r[10]), fnum(r[12])] for r in L("SigilDesc")],
+        "arcade": [[r[3], fnum(r[1]), fnum(r[2])] for r in L("ArcadeShopInfo")],
+        "vault": [fnum(r[5]) for r in L("UpgradeVault")],
+        "grim": [fnum(r[5]) for r in L("GrimoireUpg")],
+        "chip": [[r[10], fnum(r[11])] for r in L("ChipDesc")],
+        "comp": [[fnum(r[2]), fnum(r[11]) if len(r) > 11 else 0] for r in L("CompanionDB")],
+        # Pristine charms: CustomMaps NjEQ "NjTrP<t>" = "... ... ... <bonus>" (PristineBon(t) when Ninja[107][t] == 1)
+        "pristine": {int(t): fnum(v.split(" ")[3]) for t, v in re.findall(r'NjTrP(\d+)="([^"]+)"', njs) if len(v.split(" ")) > 3},
+        "meals": [[fnum(r[2]), r[5]] for r in L("MealINFO")],
+        "gear": gear,
+    }
+
+
 def fnum(s):
     try:
         f = float(s)
@@ -306,7 +374,20 @@ def main():
     gear = {k: [fnum(d.get(f, 0)) for f in ("STR", "AGI", "WIS", "LUK", "Defence", "Weapon_Power")]
             for k, d in it.items() if d.get("kind") == "Equip"}
     gear = {k: v for k, v in gear.items() if any(v)}
-    data = {"build": build, "systems": systems, "src": src, "cats": cats, "gear": gear}
+    g = game_model(njs, it)
+    # Number2Letter (save flags such as super bits and exalted stamps use it): game.mbs list + TournyStuff
+    import gzip
+    e = Assets(njs, _pak).ent["assets/data/game.mbs"]
+    raw = _pak[e["position"]:e["position"] + e["length"]]
+    try:
+        raw = gzip.decompress(raw)
+    except OSError:
+        pass
+    j = raw.find(b"Number2Letter")
+    m = re.search(rb"(?:\x00\x00\x00\x01(.))+", raw[j:j + 2000])
+    g["n2l"] = [c.decode() for c in re.findall(rb"\x00\x00\x00\x01(.)", m.group(0))] + [x for row in literal(njs, "TournyStuff") for x in row]
+    print("game model: %d talents, %d star signs, %d cards, %d stamps" % (len(g["tal"]), len(g["signs"]), len(g["cards"]), sum(map(len, g["stamps"]))))
+    data = {"build": build, "systems": systems, "src": src, "cats": cats, "gear": gear, "g": g}
     with open(os.path.join(ROOT, "src", "data.json"), "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
     n_ru = sum(1 for s in src if s[4])
