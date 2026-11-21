@@ -778,7 +778,96 @@ function wpFormula(){   // TotalStats("Weapon_Power")
   const total = terms.reduce((s, t) => s + (t[2] || 0), 0);
   return { total, show: num(total), groups: [{ en: "Sum", ru: "Сумма", sum: num(total), terms }] };
 }
-const FORMULAS = { def: defFormula, acc: accFormula, wp: wpFormula, classexp: expFormula, luk: () => statFormula("LUK"), str: () => statFormula("STR"), agi: () => statFormula("AGI"), wis: () => statFormula("WIS"), drop: dropFormula };
+const sumT = a => a.reduce((s, t) => s + (t[2] || 0), 0);
+const prodT = a => a.reduce((s, t) => s * (t[2] == null ? 1 : t[2]), 1);
+function hpFormula(){   // PlayerHPmax
+  const M = model(), T = (w, t) => M.tal(w, t), str = statFormula("STR").total;
+  const base = [["Base", "База", 15], ["Cards", "Карты", M.card(1)], ["Bubble BaseHP", "Пузырь BaseHP", M.bubble("BaseHP")], ["Stamps", "Штампы", M.stamp("BaseHP")],
+    ["Statue 4", "Статуя 4", M.statue(4)], ["Talents 0, 642", "Таланты 0, 642", T(1, 0) + T(1, 642)],
+    [`STR (${num(str)}) × talent 95, ^1.05`, `Сила (${num(str)}) × талант 95, ^1.05`, Math.pow(str * (1 + T(1, 95) / 100), 1.05)],
+    ["Boost food, post office", "Еда-бустер, почта", null]];
+  const mults = [["Talents 92, 272 + gear %", "Таланты 92, 272 + снаряжение %", 1 + (T(1, 92) + T(1, 272) + M.etc("15")) / 100],
+    ["Shrine (on its map)", "Святилище (на своей карте)", 1 + M.shrine(1) / 100],
+    ["Family bonus 18 + cards", "Семейный бонус 18 + карты", 1 + (M.fam(18) + M.card(8)) / 100],
+    ["Star signs", "Знаки зодиака", 1 + M.sign("TotalHP") / 100],
+    ["Golden food, post office, buffs", "Золотая еда, почта, баффы", null]];
+  const total = sumT(base) * prodT(mults);
+  return { total, show: num(total), groups: [{ en: "Base HP", ru: "Базовое HP", sum: num(sumT(base)), terms: base }, { en: "Multipliers", ru: "Множители", sum: "×" + num(prodT(mults)), terms: mults }] };
+}
+function mpFormula(){   // PlayerMPmax
+  const M = model(), T = (w, t) => M.tal(w, t), wis = statFormula("WIS").total;
+  const base = [["Base", "База", 10], ["Cards", "Карты", M.card(3)], ["Bubble BaseMP", "Пузырь BaseMP", M.bubble("BaseMP")], ["Stamps", "Штампы", M.stamp("BaseMP")],
+    ["Talent 1", "Талант 1", T(1, 1)], ["WIS", "Мудрость (WIS)", wis], ["Post office", "Почта", null]];
+  const mults = [["Talents 452, 272", "Таланты 452, 272", 1 + (T(1, 452) + T(1, 272)) / 100], ["Cards (+ post office)", "Карты (+ почта)", 1 + M.card(29) / 100]];
+  const total = sumT(base) * prodT(mults);
+  return { total, show: num(total), groups: [{ en: "Base MP", ru: "Базовое MP", sum: num(sumT(base)), terms: base }, { en: "Multipliers", ru: "Множители", sum: "×" + num(prodT(mults)), terms: mults }] };
+}
+const statCurve = (v, hi) => v < 1e3 ? (Math.pow(v + 1, .37) - 1) / 40 : (v - 1e3) / (v + 2500) * .5 + hi;
+function critcFormula(){   // CritChance
+  const M = model(), T = (w, t) => M.tal(w, t), agi = statFormula("AGI").total;
+  const terms = [["Base", "База", 5], [`From AGI (${num(agi)})`, `От ловкости (${num(agi)})`, statCurve(agi, .255) / 2.3 * 100],
+    ["Card set", "Набор карт", M.cardSet(9)], ["Cards (+ card w4c3)", "Карты (+ карта w4c3)", M.card(13) + Math.min(1.5 * M.cardLv("w4c3"), 50)],
+    ["Talents 640, 267, 447", "Таланты 640, 267, 447", T(1, 640) + T(1, 267) + T(1, 447)], ["Gear unique stat", "Уникальный стат снаряжения", M.etc("23")],
+    ["Prayer 11", "Молитва 11", M.prayer(11, 0)], ["Meals", "Блюда", M.meal("Crit")], ["Statue 13", "Статуя 13", M.statue(13)],
+    ["Star signs", "Знаки зодиака", M.sign("CritChance")], ["Achievement 184", "Достижение 184", 5 * M.ach(184)],
+    ["Bubble CritChance", "Пузырь CritChance", M.bubble("CritChance")], ["Post office, talent 645", "Почта, талант 645", null]];
+  const total = sumT(terms);
+  return { total, show: num(total) + "%", groups: [{ en: "Sum (%)", ru: "Сумма (%)", sum: num(total) + "%", terms }] };
+}
+function critdFormula(){   // CritDamage
+  const M = model(), T = (w, t) => M.tal(w, t), str = statFormula("STR").total;
+  const terms = [["Base", "База", 120], [`From STR (${num(str)})`, `От силы (${num(str)})`, 100 * statCurve(str, .255) / 1.8],
+    ["Talents 87, 76, 447 (2nd)", "Таланты 87, 76, 447 (2-й)", T(1, 87) + T(1, 76) + T(2, 447)], ["Statue 5", "Статуя 5", M.statue(5)],
+    ["Stamps", "Штампы", M.stamp("CritDmg")], ["Bubble critDMG", "Пузырь critDMG", M.bubble("critDMG")], ["Cards", "Карты", M.card(19)],
+    ["Prayer 11 curse", "Проклятие молитвы 11", -M.prayer(11, 1)], ["Gear unique stat", "Уникальный стат снаряжения", M.etc("22")], ["Buffs", "Баффы", null]];
+  const total = sumT(terms);
+  return { total, show: "×" + num(total / 100), groups: [{ en: "Sum (%)", ru: "Сумма (%)", sum: num(total) + "%", terms }] };
+}
+function moveFormula(){   // PlayerSpeedBonus
+  const M = model(), T = (w, t) => M.tal(w, t), agi = statFormula("AGI").total;
+  const agiC = agi < 1e3 ? (Math.pow(agi + 1, .4) - 1) / 40 : (agi - 1e3) / (agi + 2500) * .5 + .371;
+  const pct = [["Talents 266, 77", "Таланты 266, 77", T(1, 266) + T(1, 77)], ["Stamps", "Штампы", M.stamp("PctMoveSpd")], ["Account option 438", "Опция аккаунта 438", M.ola(438)],
+    ["Statue 1", "Статуя 1", M.statue(1)], ["Star signs", "Знаки зодиака", M.sign("MoveSpd")], ["Gear unique stat", "Уникальный стат снаряжения", M.etc("1")],
+    ["Cards", "Карты", M.card(6)], ["Speed food, buffs", "Еда скорости, баффы", null]];
+  let v = sumT(pct) / 100 + agiC / 2.2 + 1;
+  const cap = [["Talent 641", "Талант 641", T(1, 641)], ["Salt lick 7, chip, sigil 13 (only up to 175%)", "Солонец 7, чип, сигил 13 (только до 175%)", M.salt(7) + M.chipVal("move") + M.sigil(13)]];
+  if (v <= 2) v = v > 1.75 ? Math.min(2, Math.floor(100 * (v + cap[0][2] / 100)) / 100) : Math.min(1.75, Math.floor(100 * (v + (cap[0][2] + cap[1][2]) / 100)) / 100);
+  const total = Math.floor(100 * v) / 100;
+  return { total, show: num(total * 100) + "%", groups: [
+    { en: `From AGI (${num(agi)})`, ru: `От ловкости (${num(agi)})`, sum: "+" + num(agiC / 2.2 * 100) + "%", terms: [["AGI curve / 2.2", "Кривая ловкости / 2.2", agiC / 2.2 * 100]] },
+    { en: "Bonuses (%)", ru: "Бонусы (%)", sum: "+" + num(sumT(pct)) + "%", terms: pct },
+    { en: "Up to the 175% / 200% caps", ru: "До потолков 175% / 200%", sum: "", terms: cap }] };
+}
+function skillEffFormula(){   // SkillStats("AllEfficiencies") (multiplies every skill's efficiency) and "AllBaseSkillEff"
+  const M = model(), T = (w, t) => M.tal(w, t);
+  const base = [["Stamps", "Штампы", M.stamp("BaseAllEff")], ["Chip", "Чип", M.chipVal("eff")], ["Talent 636", "Талант 636", T(1, 636)],
+    ["Shiny pets, divinity blessing, post office, lab jewel 112", "Сияющие питомцы, благословение, почта, самоцвет 112", null]];
+  const mults = [
+    ["Family 42, gear, vials, talent 617", "Семья 42, снаряжение, флаконы, талант 617", 1 + (M.fam(42) + M.etc("48") + M.vial("6SkillEff") + T(1, 617)) / 100],
+    ["Meals, talent 646, chip, card Crystal4, account option 422", "Блюда, талант 646, чип, карта Crystal4, опция 422", 1 + (M.meal("Seff") + T(1, 646) + M.chipVal("toteff") + 3 * M.cardLv("Crystal4") + M.ola(422)) / 100],
+    ["Cards + companion 5", "Карты + компаньон 5", 1 + (M.card(84) + M.comp(5)) / 100],
+    ["Guild, card set, prayer", "Гильдия, набор карт, молитва", 1 + (M.guild(6) + M.cardSet(2) + M.prayer(1, 0)) / 100],
+    ["Prayer 17 curse", "Проклятие молитвы 17", Math.max(1 - M.prayer(17, 1) / 100, .01)],
+    ["Artifact 15, tome, palette, friends, rift, caverns, shimmer, Summoning wins, buffs", "Артефакт 15, том, палитра, друзья, рифт, пещеры, мерцание, победы в призыве, баффы", null]];
+  const total = prodT(mults);
+  return { total, show: "×" + num(total), groups: [{ en: "Efficiency multiplier (all skills)", ru: "Множитель эффективности (все навыки)", sum: "×" + num(total), terms: mults },
+    { en: "Base efficiency added to every skill", ru: "Базовая эффективность ко всем навыкам", sum: "+" + num(sumT(base)), terms: base }] };
+}
+function skillExpFormula(){   // SkillStats("AllSkillxpz") (+% to every skill's EXP) and "AllSkillxpMULTI"
+  const M = model();
+  const terms = [["Star signs", "Знаки зодиака", M.sign("SkillEXP")], ["Cards (+ cards springEvent2, w5a4)", "Карты (+ карты springEvent2, w5a4)", M.card(50) + 2 * M.cardLv("springEvent2") + 5 * M.cardLv("w5a4")],
+    ["Arcade 18", "Аркада 18", M.arcade(18)], ["Card set", "Набор карт", M.cardSet(3)], ["Shrine (on its map)", "Святилище (на своей карте)", M.shrine(5)],
+    ["Statue 17", "Статуя 17", M.statue(17)], ["Prayers (minus curses 1, 9)", "Молитвы (минус проклятия 1, 9)", M.prayer(2, 0) + M.prayer(17, 0) - M.prayer(1, 1) - M.prayer(9, 1)],
+    ["Gear unique stat", "Уникальный стат снаряжения", M.etc("27")], ["Salt lick 3", "Солонец 3", M.salt(3)],
+    ["Achievements 283, 284, 294, 359", "Достижения 283, 284, 294, 359", 10 * M.ach(283) + 25 * M.ach(284) + 10 * M.ach(294) + 15 * M.ach(359)],
+    ["Companion 9", "Компаньон 9", M.comp(9)], ["Guild 14", "Гильдия 14", M.guild(14)],
+    ["Golden food, bubonic, talent 35 enhancement, post office, divinity, rift, shiny, MSA, Summoning wins, owl, caverns, sets, friends", "Золотая еда, бубонный, усиление таланта 35, почта, божество, рифт, сияющие, MSA, победы, сова, пещеры, сеты, друзья", null]];
+  const mult = [["Companion 32", "Компаньон 32", 1 + M.comp(32)], ["Meritocracy, legend talent 20", "Меритократия, легендарный талант 20", null]];
+  const total = sumT(terms);
+  return { total, show: "+" + num(total) + "%", groups: [{ en: "Added to every skill's EXP (%)", ru: "Прибавка к опыту каждого навыка (%)", sum: "+" + num(total) + "%", terms },
+    { en: "Multiplier of the skill part", ru: "Множитель навыковой части", sum: "×" + num(prodT(mult)), terms: mult }] };
+}
+const FORMULAS = { skilleff: skillEffFormula, skillexp: skillExpFormula, move: moveFormula, hp: hpFormula, mp: mpFormula, critc: critcFormula, critd: critdFormula, def: defFormula, acc: accFormula, wp: wpFormula, classexp: expFormula, luk: () => statFormula("LUK"), str: () => statFormula("STR"), agi: () => statFormula("AGI"), wis: () => statFormula("WIS"), drop: dropFormula };
 function formulaHtml(id){
   if (!acct || !FORMULAS[id]) return "";
   let f;
