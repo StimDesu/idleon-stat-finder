@@ -239,6 +239,7 @@ function setAccount(a){
 function f5(type, x1, x2, n){   // ArbitraryCode5Inputs
   switch (type) {
     case "add": return x2 !== 0 ? ((x1 + x2) / x2 + .5 * (n - 1)) / (x1 / x2) * n * x1 : x1 * n;
+    case "addDECAY": return n < 50001 ? x1 * n : x1 * Math.min(5e4, n) + (n - 5e4) / (n - 5e4 + 15e4) * x1 * 5e4;
     case "decay": return x1 * n / (n + x2);
     case "decayMulti": return 1 + x1 * n / (n + x2);
     case "bigBase": return x1 + x2 * n;
@@ -538,6 +539,20 @@ function model(){
   };
   M.salt = i => at(A("SaltLick"), i) > 0 ? at(A("SaltLick"), i) * GM.salt[i] : 0;
   M.lv = lv0(charN)[0] || 0;
+  M.maxLv = Math.max(...acct.chars.map(c => lv0(c.n)[0] || 0));                                        // CalcTalentMAP[620]
+  M.maxBeginnerLv = Math.max(0, ...acct.chars.filter(c => cls(c.n) < 6).map(c => lv0(c.n)[0] || 0));   // CalcTalentMAP[616]
+  M.talentCalc = t => t === 620 ? Math.min(M.tal(1, 620), Math.floor(M.maxLv / 10)) : t === 616 ? M.tal(1, 616) * M.maxBeginnerLv : null;
+  M.quests = () => {   // completed quests (each quest counted once over all characters)
+    const done = new Set();
+    acct.chars.forEach(c => Object.entries(asArr(A("QuestComplete_" + c.n)) || {}).forEach(([k, v]) => { if (Number(v) === 1) done.add(k); }));
+    return done.size;
+  };
+  M.owl = i => {   // Summoning("OwlBonuses", i): Orion's permanent bonuses (legend talent 26 not counted)
+    const mf = t => M.ola(262) > t ? (t === 9 ? M.ola(262) - 9 : 1) : 0;
+    const all = 100 * (mf(1) + mf(3) + mf(5) + mf(7) + Math.min(1, mf(9))) + 50 * Math.max(0, mf(9) - 1);
+    return [5, 10, 2, 4, 1, 2][i] * (1 + M.comp(51)) * (1 + all / 100) * Math.max(0, Math.ceil((M.ola(255) - i) / 6));
+  };
+  M.shimmer = i => M.ola(i);   // x AllShimmerBonuses = max(1, ...artifact 31), artifact not counted
   M.skill = i => lv0(charN)[i] || 0;
   M.bribe = i => at(A("BribeStatus"), i) === 1 ? GM.bribe[i] : 0;   // GetBribeBonus  M.lowest = acct.chars.every(c => c.n === charN || (lv0(c.n)[0] || 0) > M.lv);   // strictly the lowest class level
   M.cloud = n => { const w = asArr(A("WeeklyBoss")) || {}; return Number(w["d_" + n]) === -1 ? 1 : 0; };
@@ -571,11 +586,13 @@ function statFormula(k){   // "STR" | "AGI" | "WIS" | "LUK"
     ["Arcade", "Аркада", M.arcade(P.arc)],
     ["All stats: meals + guild", "Все характеристики: блюда + гильдия", allStat],
   ];
-  if (k === "LUK") flat.push(["Talent 23", "Талант 23", T(1, 23)], ["Quests talent (min with quests done)", "Талант за квесты", null]);
+  flat.push(["Talent 620 (max 1 per 10 levels of the best character)", "Талант 620 (не больше 1 за 10 ур. лучшего персонажа)", M.talentCalc(620)],
+    ["Shimmer (Equinox), artifact multiplier not counted", "Мерцание (равноденствие), без множителя артефакта", M.shimmer({ STR: 174, AGI: 175, WIS: 176, LUK: 177 }[k])]);
+  if (k === "LUK") flat.push(["Talent 23", "Талант 23", T(1, 23)], ["Talent 618 (up to quests done: " + M.quests() + ")", "Талант 618 (не больше выполненных квестов: " + M.quests() + ")", Math.min(M.quests(), T(1, 618))]);
   if (k === "STR") flat.push(["Talents 98, 203", "Таланты 98, 203", T(1, 98) + T(1, 203)], ["Talent 142 (2nd)", "Талант 142 (2-й)", T(2, 142)]);
   if (k === "AGI") flat.push(["Talents 278, 428", "Таланты 278, 428", T(1, 278) + T(1, 428)], ["Talent 367 (2nd)", "Талант 367 (2-й)", T(2, 367)]);
   if (k === "WIS") flat.push(["Talents 459, 593", "Таланты 459, 593", T(1, 459) + T(1, 593)], ["Talent 532 (2nd)", "Талант 532 (2-й)", T(2, 532)]);
-  flat.push(["Post office boxes", "Почтовые ящики", null], ["Shiny pets", "Сияющие питомцы", null], ["Orion owl", "Сова Орион", null], ["Shimmer (Equinox)", "Мерцание (равноденствие)", null], ["Talent 620", "Талант 620", null]);
+  flat.push(["Post office boxes", "Почтовые ящики", null], ["Shiny pets", "Сияющие питомцы", null], ["Orion owl", "Сова Орион", M.owl(5)]);
   const pct = [
     ["Gear: % " + k, "Снаряжение: % " + k, M.etc(P.etcP)],
     ["Gear: % all stats", "Снаряжение: % ко всем", M.etc("46")],
@@ -605,6 +622,7 @@ function dropFormula(){
     ["Grimoire: Skull of Major Droprate", "Гримуар: Skull of Major Droprate", M.grim(44)],
     ["Upgrade vault: Drops for Days", "Хранилище: Drops for Days", M.vault(18)],
     ["Companions 22, 158, 111", "Компаньоны 22, 158, 111", M.comp(22) + M.comp(158) + M.comp(111)],
+    ["Orion owl", "Сова Орион", M.owl(4)],
   ];
   const t1 = [
     ["Talent 279", "Талант 279", T(1, 279)], ["Talent 24", "Талант 24", T(1, 24)],
@@ -671,6 +689,7 @@ function expFormula(){   // ExpMulti(0): class EXP multiplier from monsters
     ["Grimoire, vault (see above)", "Гримуар, хранилище (выше)", sum(l4)],
     ["Account option 421", "Опция аккаунта 421", M.ola(421)],
     ["Stamps: class EXP", "Штампы: опыт класса", M.stamp("classxp")],
+    ["Orion owl", "Сова Орион", M.owl(0)],
     ["Golden food, Owl, voting, monument, sets, exotic, friends, shimmer, minehead", "Золотая еда, сова, голосование, монумент, сеты, экзотика, друзья, мерцание, minehead", null],
   ];
   const adds = [
@@ -862,7 +881,7 @@ function skillExpFormula(){   // SkillStats("AllSkillxpz") (+% to every skill's 
     ["Statue 17", "Статуя 17", M.statue(17)], ["Prayers (minus curses 1, 9)", "Молитвы (минус проклятия 1, 9)", M.prayer(2, 0) + M.prayer(17, 0) - M.prayer(1, 1) - M.prayer(9, 1)],
     ["Gear unique stat", "Уникальный стат снаряжения", M.etc("27")], ["Salt lick 3", "Солонец 3", M.salt(3)],
     ["Achievements 283, 284, 294, 359", "Достижения 283, 284, 294, 359", 10 * M.ach(283) + 25 * M.ach(284) + 10 * M.ach(294) + 15 * M.ach(359)],
-    ["Companion 9", "Компаньон 9", M.comp(9)], ["Guild 14", "Гильдия 14", M.guild(14)],
+    ["Companion 9", "Компаньон 9", M.comp(9)], ["Guild 14", "Гильдия 14", M.guild(14)], ["Orion owl", "Сова Орион", M.owl(3)],
     ["Golden food, bubonic, talent 35 enhancement, post office, divinity, rift, shiny, MSA, Summoning wins, owl, caverns, sets, friends", "Золотая еда, бубонный, усиление таланта 35, почта, божество, рифт, сияющие, MSA, победы, сова, пещеры, сеты, друзья", null]];
   const mult = [["Companion 32", "Компаньон 32", 1 + M.comp(32)], ["Meritocracy, legend talent 20", "Меритократия, легендарный талант 20", null]];
   const total = sumT(terms);
@@ -1062,7 +1081,7 @@ function dmgFormula(){   // DamageDealed("Max"): max damage = base × percent pa
   const p1 = [
     ["Main stat^0.7", "Главный стат^0.7", Math.pow(mainStat, .7)], ["Vault 15 × option 338, vault 10", "Хранилище 15 × опция 338, хранилище 10", M.vault(15) * M.ola(338) + .4 * M.vault(10)],
     ["Bribes 30, 20", "Взятки 30, 20", M.bribe(30) + M.bribe(20)], ["Stamps, statue 22, talent 113", "Штампы, статуя 22, талант 113", M.stamp("PctDmg") + M.statue(22) + T(1, 113)],
-    ["log HP × talent 86, log MP × talent 446", "log HP × талант 86, log MP × талант 446", getLOG(hp) * T(1, 86) + getLOG(mp) * T(1, 446)], ["Vault 80", "Хранилище 80", M.vault(80)],
+    ["log HP × talent 86, log MP × talent 446", "log HP × талант 86, log MP × талант 446", getLOG(hp) * T(1, 86) + getLOG(mp) * T(1, 446)], ["Vault 80", "Хранилище 80", M.vault(80)], ["Orion owl", "Сова Орион", M.owl(1)],
     ["Lank rank, Owl, Roo, Bubba, spelunking shop, vault kills", "Lank, сова, Ру, бубба, магазин спелеологии, убийства хранилища", null]];
   const p1b = [
     ["Talent 284 × combat level", "Талант 284 × уровень боя", 1 + T(1, 284) * (Math.min(100, M.skill(2)) / 10) / 100],
