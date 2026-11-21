@@ -150,6 +150,8 @@ def game_model(njs, it):
         "statue": [fnum(r[3]) for r in L("StatueInfo")],
         "salt": [fnum(r[3]) for r in L("SaltLicks")],
         "bribe": [fnum(r[5]) for r in L("BribeDescriptions")],
+        # CustomMaps.EquipmentSets: NAME -> [parts..., [needTools, needWeapon, bonus, text]]; GetSetBonus(NAME,"Bonus") = [3][2]
+        "sets": {k: fnum(v) for k, v in re.findall(r'e\.h\.(\w+_SET)=\[.*?\["\d+","\d+","([\d.]+)"', njs[njs.find(".EquipmentSets=function"):njs.find(".EquipmentSets=function") + 20000])},
         "gear": gear,
     }
 
