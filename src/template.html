@@ -4,22 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>IdleOn Stat Finder</title>
-<meta name="description" content="Legends of Idleon: pick a stat (drop rate, cooking speed, lab line width...) and see every bonus in the game that raises it, read from the game code.">
+<meta name="description" content="Legends of Idleon: pick a stat (drop rate, cooking speed, lab line width...) and see every bonus in the game that raises it, with your current values from the save.">
 <link rel="icon" href="img/favicon.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
 :root{
   --bg:#f3f4f8; --panel:#ffffff; --panel2:#f7f8fb; --ink:#1b1f33; --muted:#666c86; --line:#dcdfea;
-  --gold:#b98200; --gold-bg:#fff1c7; --blue:#2f63c8; --blue-bg:#dfe8fb;
+  --gold:#b98200; --gold-bg:#fff1c7; --blue:#2f63c8; --blue-bg:#dfe8fb; --ok:#1f8a55; --bad:#c4391a;
   --display:"Chakra Petch",system-ui,sans-serif; --body:"IBM Plex Sans",system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,monospace;
   color-scheme:light;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#0d1020; --panel:#151a30; --panel2:#11162a; --ink:#e6e8f4; --muted:#9097b3; --line:#262c48;
-  --gold:#ffcb45; --gold-bg:#3b3112; --blue:#8fb2ff; --blue-bg:#1b2648; color-scheme:dark}}
+  --gold:#ffcb45; --gold-bg:#3b3112; --blue:#8fb2ff; --blue-bg:#1b2648; --ok:#5fd394; --bad:#ff8a6b; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0d1020; --panel:#151a30; --panel2:#11162a; --ink:#e6e8f4; --muted:#9097b3; --line:#262c48;
-  --gold:#ffcb45; --gold-bg:#3b3112; --blue:#8fb2ff; --blue-bg:#1b2648; color-scheme:dark}
+  --gold:#ffcb45; --gold-bg:#3b3112; --blue:#8fb2ff; --blue-bg:#1b2648; --ok:#5fd394; --bad:#ff8a6b; color-scheme:dark}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.45}
 [hidden]{display:none!important}
@@ -28,18 +28,30 @@ header{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;justify-con
 h1{font-family:var(--display);font-weight:700;font-size:26px;margin:0;letter-spacing:.01em}
 h1 small{font-family:var(--body);font-weight:400;font-size:14px;color:var(--muted);margin-left:8px}
 h2{font-family:var(--display);font-weight:700;font-size:18px;margin:0;letter-spacing:.02em}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+.btn{background:var(--ink);color:var(--bg);border:1px solid var(--ink);border-radius:6px;padding:6px 12px;font-weight:600}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
 .lang{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
-.lang button{background:transparent;color:var(--muted);border:0;border-radius:0;padding:4px 10px;font:600 12px var(--mono);cursor:pointer}
+.lang button{background:transparent;color:var(--muted);border:0;border-radius:0;padding:4px 10px;font:600 12px var(--mono)}
 .lang button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;display:grid;gap:10px;min-width:0;align-content:start}
+.row-in{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center}
+#nick{padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);min-width:0;width:220px;max-width:100%}
+#save{width:100%;height:44px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);font:12px var(--mono);resize:vertical}
+.or{font:600 11px var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.file{position:relative;overflow:hidden}
+.file input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.msg{font-size:13px}.msg.ok{color:var(--ok)}.msg.err{color:var(--bad)}
+select{padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel2)}
 .layout{display:grid;grid-template-columns:minmax(260px,340px) minmax(0,1fr);gap:16px;align-items:start}
 @media (max-width:820px){.layout{grid-template-columns:minmax(0,1fr)}}
 .side{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}
 @media (max-width:820px){.side{position:static;max-height:none}}
-input[type=search]{width:100%;font:inherit;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--ink)}
+input[type=search]{width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel2)}
 .cat h3{font-family:var(--display);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:4px 0 6px}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
-.chip{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:999px;padding:3px 10px;font:500 13px var(--body);cursor:pointer;display:inline-flex;gap:6px;align-items:baseline}
+.chip{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:999px;padding:3px 10px;font:500 13px var(--body);display:inline-flex;gap:6px;align-items:baseline}
 .chip b{font:600 11px var(--mono);color:var(--muted)}
 .chip:hover{border-color:var(--blue)}
 .chip[aria-pressed="true"]{background:var(--blue-bg);border-color:var(--blue);color:var(--blue)}
@@ -47,26 +59,38 @@ input[type=search]{width:100%;font:inherit;padding:7px 10px;border:1px solid var
 .res-head{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline}
 .res-head .n{color:var(--muted)}
 .tools{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;color:var(--muted);font-size:13px}
-.tools button{font:500 13px var(--body);background:none;border:0;color:var(--blue);cursor:pointer;padding:0}
+.tools .lnk{font:500 13px var(--body);background:none;border:0;color:var(--blue);padding:0}
+.totals{display:flex;flex-wrap:wrap;gap:8px}
+.tot{border:1px solid var(--line);background:var(--panel2);border-radius:8px;padding:6px 12px;display:grid}
+.tot b{font:600 18px var(--mono)}
+.tot span{font-size:12px;color:var(--muted)}
 details.sys{border:1px solid var(--line);border-radius:8px;background:var(--panel2)}
-details.sys>summary{cursor:pointer;padding:8px 12px;font-weight:600;display:flex;gap:8px;align-items:baseline;list-style:none}
+details.sys>summary{cursor:pointer;padding:8px 12px;font-weight:600;display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline;list-style:none}
 details.sys>summary::-webkit-details-marker{display:none}
 details.sys>summary::before{content:"▸";color:var(--muted);width:10px}
 details.sys[open]>summary::before{content:"▾"}
 details.sys>summary .c{font:600 12px var(--mono);color:var(--muted)}
+details.sys>summary .sv{margin-left:auto;font:600 12px var(--mono);color:var(--ok)}
 .rows{display:grid;border-top:1px solid var(--line)}
-.row{display:grid;grid-template-columns:minmax(120px,240px) minmax(0,1fr);gap:4px 12px;padding:7px 12px;border-top:1px solid var(--line)}
+.row{display:grid;grid-template-columns:minmax(110px,220px) minmax(0,1fr) 64px 92px;gap:4px 12px;padding:6px 12px;border-top:1px solid var(--line);align-items:baseline}
+.rows.nosave .row{grid-template-columns:minmax(110px,240px) minmax(0,1fr)}
 .row:first-child{border-top:0}
-@media (max-width:560px){.row{grid-template-columns:minmax(0,1fr)}}
+.row.off{color:var(--muted)}
+.row.off .nm{font-weight:500}
+@media (max-width:640px){.row,.rows.nosave .row{grid-template-columns:minmax(0,1fr) auto}.row .nm{grid-column:1;grid-row:1}.row .val{grid-column:2;grid-row:1}.row .txw{grid-column:1/-1;grid-row:2}.row .lv{display:none}}
 .row .nm{font-weight:600}
 .row .tx{white-space:pre-line;overflow-wrap:anywhere}
 .row .alt{color:var(--muted);font-size:12px;white-space:pre-line}
+.row .lv{font:12px var(--mono);color:var(--muted);text-align:right}
+.row .val{font:600 13px var(--mono);text-align:right;white-space:nowrap}
+.row.off .val{font-weight:400}
+.row .val small{display:block;font:11px var(--body);color:var(--muted);white-space:normal}
 i.n{font-style:normal;font:600 12px var(--mono);color:var(--gold);background:var(--gold-bg);border-radius:3px;padding:0 3px}
+i.v{font-style:normal;font:600 12px var(--mono);color:var(--ok)}
 mark{background:var(--gold-bg);color:inherit;border-radius:2px}
 .hint{color:var(--muted);font-size:13px}
 .empty{color:var(--muted);padding:12px}
 footer{color:var(--muted);font-size:12px}
-footer a{color:inherit}
 </style>
 </head>
 <body>
@@ -77,6 +101,22 @@ footer a{color:inherit}
       <button type="button" data-lang="en">EN</button><button type="button" data-lang="ru">RU</button>
     </div>
   </header>
+
+  <div class="card">
+    <form class="row-in" id="nickForm">
+      <input id="nick" type="text" autocomplete="username" spellcheck="false" aria-labelledby="nickBtn">
+      <button id="nickBtn" class="btn" type="submit" data-i="nick_btn"></button>
+      <span class="hint" data-i="nick_hint"></span>
+    </form>
+    <div class="or" data-i="or"></div>
+    <textarea id="save" spellcheck="false" aria-label="Save JSON"></textarea>
+    <div class="row-in">
+      <button id="go" class="btn" type="button" data-i="parse"></button>
+      <label class="btn ghost file"><span data-i="open"></span><input id="file" type="file" accept=".json,.txt,application/json,text/plain"></label>
+      <button id="forget" type="button" class="btn ghost" data-i="forget"></button>
+      <span id="msg" class="msg" role="status"></span>
+    </div>
+  </div>
 
   <div class="layout">
     <aside class="card side">
@@ -94,43 +134,217 @@ const D = __DATA__;
 const T = {
   en: {
     title: "IdleOn Stat Finder", subtitle: "every place in the game that raises a stat",
+    nick_btn: "Load by username", nick_hint: "Your profile published on idleonefficiency.com. Publish it there again to refresh.",
+    or: "or paste the raw JSON of your save", parse: "Load", open: "Open file…", forget: "Forget save",
+    ok: "Save loaded.", ok_nick: a => `Loaded ${a.name}` + (a.when ? ` (published ${a.when}).` : "."), nick_loading: n => `Loading ${n}…`, ok_saved: "Last save loaded.", forgot: "Save forgotten.",
+    e_nokey: "This is not an IdleOn save (no character data).", e_nick: a => `No profile for ${a.name} (HTTP ${a.status}). Publish it on idleonefficiency.com first.`, e_nickfail: a => `Could not load ${a.name}: ${a.err}`,
     search: "Search any bonus text, e.g. 'line width' or 'kitchen'",
     pick: "Pick a stat on the left, or type in the search box.",
     found: n => n + " bonuses", systems: n => "in " + n + " systems",
-    open: "Expand all", close: "Collapse all", alt: "Show the other language",
-    none: "Nothing found.", short: "Type at least 3 letters.",
+    open_all: "Expand all", close_all: "Collapse all", alt: "Show the other language", only_on: "Only bonuses that work now",
+    char: "Character", none: "Nothing found.", short: "Type at least 3 letters.",
     searchTitle: q => "Search: “" + q + "”",
-    foot: "All names and texts are read from the game code; # marks the number the game fills in (it depends on the level). Russian texts are from the IdleOn Russian translation.",
+    t_pct: "sum of +% bonuses", t_flat: "sum of flat + bonuses", t_mult: "product of × bonuses", t_count: (a, b) => `${a} of ${b} bonuses work now`,
+    tot_note: "Sums of what the save shows for each source, at base values. The game combines a stat with its own formula (some bonuses add, some multiply, many have extra multipliers or conditions), so the real in-game number can differ. Grey rows: not unlocked, not equipped, or level 0.",
+    nosave: "Load your save to see your current value of every bonus.",
+    unread: "not read from save", lvl: "lv", eq_not: "not equipped", eq_yes: "equipped", map: "on its map",
+    cur_char: "this character", fixed: "unlocked",
+    foot: "All names, texts and base formulas are read from the game code; # marks the number the game fills in. Russian texts are from the IdleOn Russian translation.",
     build: b => "Game build " + b + ".",
   },
   ru: {
     title: "IdleOn: поиск бонусов", subtitle: "все места в игре, где можно поднять стат",
+    nick_btn: "Загрузить по нику", nick_hint: "Берётся профиль, опубликованный на idleonefficiency.com. Чтобы обновить данные, опубликуйте профиль там заново.",
+    or: "или вставьте raw JSON сохранения", parse: "Загрузить", open: "Открыть файл…", forget: "Забыть сохранение",
+    ok: "Сохранение загружено.", ok_nick: a => `Загружен ${a.name}` + (a.when ? ` (опубликован ${a.when}).` : "."), nick_loading: n => `Загружаю ${n}…`, ok_saved: "Загружено прошлое сохранение.", forgot: "Сохранение забыто.",
+    e_nokey: "Это не сохранение IdleOn (нет данных персонажей).", e_nick: a => `Профиль ${a.name} не найден (HTTP ${a.status}). Сначала опубликуйте его на idleonefficiency.com.`, e_nickfail: a => `Не удалось загрузить ${a.name}: ${a.err}`,
     search: "Поиск по тексту бонуса, например «ширина линии» или «кухня»",
     pick: "Выберите стат слева или введите текст в поиск.",
     found: n => n + " " + plural(n, "бонус", "бонуса", "бонусов"), systems: n => "в " + n + " " + plural(n, "системе", "системах", "системах"),
-    open: "Развернуть все", close: "Свернуть все", alt: "Показывать текст на другом языке",
-    none: "Ничего не найдено.", short: "Введите хотя бы 3 буквы.",
+    open_all: "Развернуть все", close_all: "Свернуть все", alt: "Показывать текст на другом языке", only_on: "Только работающие сейчас",
+    char: "Персонаж", none: "Ничего не найдено.", short: "Введите хотя бы 3 буквы.",
     searchTitle: q => "Поиск: «" + q + "»",
-    foot: "Все названия и тексты взяты из кода игры; # — число, которое игра подставляет (зависит от уровня). Русские тексты — из русификатора IdleOn.",
+    t_pct: "сумма бонусов +%", t_flat: "сумма бонусов +N", t_mult: "произведение бонусов ×", t_count: (a, b) => `работают ${a} из ${b}`,
+    tot_note: "Это суммы значений из сохранения по каждому источнику, в базовом виде. Игра собирает стат своей формулой (часть бонусов складывается, часть умножается, у многих есть свои множители и условия), поэтому число в игре может отличаться. Серые строки — не открыто, не надето или уровень 0.",
+    nosave: "Загрузите сохранение, чтобы видеть текущее значение каждого бонуса.",
+    unread: "не читается из сохранения", lvl: "ур.", eq_not: "не надето", eq_yes: "надето", map: "на своей карте",
+    cur_char: "этот персонаж", fixed: "открыто",
+    foot: "Все названия, тексты и базовые формулы взяты из кода игры; # — число, которое игра подставляет. Русские тексты — из русификатора IdleOn.",
     build: b => "Сборка игры " + b + ".",
   },
 };
 function plural(n, one, few, many){ const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many; }
-const store = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch(e){} } };
+const store = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch(e){} }, del(k){ try { localStorage.removeItem(k); } catch(e){} } };
 let lang = store.get("sf-lang") || ((navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || "en"]).some(l => /^ru\b/i.test(l)) ? "ru" : "en");
 let L = T[lang];
 let stat = store.get("sf-stat") || "";
 let query = "";
 let showAlt = store.get("sf-alt") === "1";
+let onlyOn = store.get("sf-on") === "1";
+let acct = null, charN = Number(store.get("sf-char")) || 0;
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const loc = () => lang === "ru" ? "ru-RU" : "en-US";
 const STATS = {};
 D.cats.forEach(c => c.stats.forEach(s => STATS[s.id] = s));
-// texts keep the game's placeholders: { } $ ^ ~ are numbers the game fills in
-const fmt = (s, hl) => {
+
+// ---------- save ----------
+const asArr = v => { if (typeof v !== "string") return v; try { return JSON.parse(v); } catch (e) { return v; } };
+const at = (a, i) => { if (a == null) return 0; const v = Array.isArray(a) ? a[i] : a[i] != null ? a[i] : a[String(i)]; return Number(v) || 0; };
+const list = a => a == null ? [] : Array.isArray(a) ? a : Object.keys(a).filter(k => /^\d+$/.test(k)).sort((x, y) => x - y).map(k => a[k]);
+function parseSave(text){
+  let o = JSON.parse(text.trim());
+  if (o && o.data && typeof o.data === "object" && !("Lv0_0" in o)) o = o.data;
+  if (!o || !("Lv0_0" in o)) throw new Error("nokey");
+  const A = k => o[k] == null ? null : asArr(o[k]);
+  const names = asArr(o.playerNames) || [], lab = list(A("Lab")).map(asArr);
+  const chars = [];
+  for (let n = 0; ("Lv0_" + n) in o; n++) {
+    const eq = list(A("EquipOrder_" + n)).map(list);
+    chars.push({
+      n, name: names[n] || "#" + (n + 1), sl: A("SL_" + n) || {},
+      sign: String(o["PVtStarSign_" + n] || "").split(",").filter(x => x !== "" && x !== "_"),
+      cards: list(A("CardEquip_" + n)).map(String), statue: list(A("StatueLevels_" + n)).map(list),
+      prayers: list(A("Prayers_" + n)).map(Number), chips: list(lab[1 + n]).map(Number),
+      bubbles: list(A("CauldronBubbles")).map(list)[n] || [],
+      // worn things: [item ids, upgrade maps]
+      worn: [[eq[0] || [], A("EMm0_" + n) || {}], [eq[1] || [], A("EMm1_" + n) || {}], [list(A("ObolEqO0_" + n)), A("ObolEqMAP_" + n) || {}]],
+    });
+  }
+  return { A, chars, family: [list(A("ObolEqO1")), A("ObolEqMAPz1") || {}], cards0: A("Cards0") || {} };
+}
+function setAccount(a){
+  acct = a;
+  if (acct && !acct.chars[charN]) charN = 0;
+  renderOut();
+}
+
+// ---------- the current value of one bonus (base formulas from the game code) ----------
+function f5(type, x1, x2, n){   // ArbitraryCode5Inputs
+  switch (type) {
+    case "add": return x2 !== 0 ? ((x1 + x2) / x2 + .5 * (n - 1)) / (x1 / x2) * n * x1 : x1 * n;
+    case "decay": return x1 * n / (n + x2);
+    case "decayMulti": return 1 + x1 * n / (n + x2);
+    case "bigBase": return x1 + x2 * n;
+    case "intervalAdd": return x1 + Math.floor(n / x2);
+    case "reduce": return x1 - x2 * n;
+    default: return 0;
+  }
+}
+function cardLv(id, req){   // "CardLv": 1 star per threshold req*(s+1+s/3+16(s/4)+100(s/5))^2
+  const kills = Number(acct.cards0[id]) || 0;
+  if (kills <= 0) return 0;
+  const stars = 4 + (at(acct.A("Rift"), 0) >= 45 ? 1 : 0) + (at(list(acct.A("Spelunk"))[0], 2) >= 1 ? 1 : 0);
+  let lv = 1;
+  for (let s = 0; s < stars; s++) if (kills > req * Math.pow(s + 1 + Math.floor(s / 3) + 16 * Math.floor(s / 4) + 100 * Math.floor(s / 5), 2)) lv = s + 2;
+  return lv;
+}
+const fixedNum = t => { const m = String(t).match(/\d+(\.\d+)?/); return m ? Number(m[0]) : 0; };
+// where an item is worn: [slot, upgrade map] or null
+function worn(ch, item){
+  for (const [ids, ups] of [...ch.worn, acct.family]) {
+    const i = ids.indexOf(item);
+    if (i >= 0) return asArr(ups[i] != null ? ups[i] : ups[String(i)]) || {};
+  }
+  return null;
+}
+// returns {lv, v, v2, on, note} or null when the system is not read from the save
+function value(x){
+  const c = x[5]; if (!c || !acct) return null;
+  const A = acct.A, ch = acct.chars[charN];
+  switch (c[0]) {
+    case "tal": { const lv = Number(ch.sl[c[1]]) || 0; return { lv, v: f5(c[2], c[3], c[4], lv), v2: c[5] !== "txt" ? f5(c[5], c[6], c[7], lv) : null, on: lv > 0, who: 1 }; }
+    case "bub": {
+      const lv = at(list(A("CauldronInfo"))[c[1]], c[2]); let on = lv > 0, note = "";
+      if (c[6]) { on = on && ch.bubbles.includes("abcd"[c[1]] + c[2]); note = on ? L.eq_yes : L.eq_not; }
+      return { lv, v: f5(c[3], c[4], c[5], lv), on, note, who: c[6] };
+    }
+    case "vial": { const lv = at(list(A("CauldronInfo"))[4], c[1]); return { lv, v: f5(c[2], c[3], c[4], lv), on: lv > 0 }; }
+    case "stamp": { const lv = at(list(A("StampLv"))[c[1]], c[2]); return { lv, v: f5(c[3], c[4], c[5], lv), on: lv > 0 }; }
+    case "card": {
+      const lv = cardLv(c[1], c[2]), eq = ch.cards.includes(c[1]);
+      return { lv, v: c[3] * lv, on: lv > 0 && eq, note: lv > 0 ? (eq ? L.eq_yes : L.eq_not) : "", who: 1 };
+    }
+    case "gear": {
+      const up = worn(ch, c[1]);
+      if (!up) return { lv: null, v: c[3], on: false, note: L.eq_not, who: 1 };
+      return { lv: null, v: c[3] + (Number(up["UQ" + c[2] + "val"]) || 0), on: true, note: L.eq_yes, who: 1 };
+    }
+    case "gearstat": {
+      const f = ["STR", "AGI", "WIS", "LUK", "Defence", "Weapon_Power"].indexOf(c[1]); let v = 0;
+      for (const [ids, ups] of [...ch.worn, acct.family]) ids.forEach((id, i) => {
+        if (!id || id === "Blank") return;
+        const u = asArr(ups[i] != null ? ups[i] : ups[String(i)]) || {};
+        v += (D.gear[id] ? D.gear[id][f] : 0) + (Number(u[c[1]]) || 0);
+      });
+      return { lv: null, v, on: v > 0, who: 1 };
+    }
+    case "statue": {
+      const lv = Number((ch.statue[c[1]] || [])[0]) || 0, g = at(A("StuG"), c[1]);
+      return { lv, v: lv * c[2] * (g >= 2 ? 2 : 1) * (g >= 3 ? 1.5 : 1), on: lv > 0 };
+    }
+    case "sign": { const on = ch.sign.includes(String(c[1])); return { lv: null, v: fixedNum(x[3]), on, note: on ? L.eq_yes : L.eq_not, who: 1 }; }
+    case "shrine": { const lv = at(list(A("Shrine"))[c[1]], 3); return { lv, v: lv > 0 ? (lv - 1) * c[3] + c[2] : 0, on: lv > 0, note: L.map }; }
+    case "guild": { const lv = at(list(A("Guild"))[0], c[1]); return { lv, v: f5(c[2], c[3], c[4], lv), on: lv > 0 }; }
+    case "bribe": { const on = at(A("BribeStatus"), c[1]) === 1; return { lv: null, v: c[2], on, note: on ? L.fixed : "" }; }
+    case "arc": {
+      const lv = at(A("ArcadeUpg"), c[1]);
+      return { lv, v: f5(c[2], c[3], c[4], Math.min(lv, 100)) * (lv >= 102 ? 6 : lv >= 101 ? 2 : 1), on: lv > 0 };
+    }
+    case "ach": { const on = at(A("AchieveReg"), c[1]) === -1; return { lv: null, v: fixedNum(x[3]), on, note: on ? L.fixed : "" }; }
+    case "prayer": {
+      const lv = at(A("PrayOwned"), c[1]), eq = ch.prayers.includes(c[1]);
+      return { lv, v: lv > 0 ? Math.round(c[2] * Math.max(1, 1 + (lv - 1) / 10)) : 0, on: lv > 0 && eq, note: lv > 0 ? (eq ? L.eq_yes : L.eq_not) : "", who: 1 };
+    }
+    case "lv": {
+      const [k, sub] = c[1].split("."), arr = sub != null ? list(A(k))[sub] : A(k), lv = at(arr, c[2]);
+      return { lv, v: lv * c[3], on: lv > 0 };
+    }
+    case "sigil": {
+      const t = at(list(A("CauldronP2W"))[4], 1 + 2 * c[1]);
+      const tier = t < -0.1 ? -1 : t < 0.5 ? 0 : t < 1.5 ? 1 : t < 2.5 ? 2 : t < 3.5 ? 3 : 4;
+      return { lv: tier + 1, v: tier < 0 ? 0 : c[2][tier], on: tier >= 0 };
+    }
+    case "chip": { const on = ch.chips.includes(c[1]); return { lv: null, v: c[2], on, note: on ? L.eq_yes : L.eq_not, who: 1 }; }
+    case "jewel": { const on = at(list(list(acct.A("Lab"))[14]), c[1]) === 1; return { lv: null, v: c[2], on, note: on ? L.fixed : "" }; }
+  }
+  return null;
+}
+// what kind of number the text gives: "%" (adds percent), "x" (multiplies) or "+" (flat)
+function unit(t){
+  if (/^%/.test(t)) return "%";
+  const m = t.match(/[{}]\s?(%|x|X)?|\d+(\.\d+)?\s?(%|x)?/);
+  if (!m) return "+";
+  const u = m[1] || m[3];
+  return u === "%" ? "%" : u === "x" || u === "X" ? "x" : "+";
+}
+// a "×" bonus as a multiplier: decayMulti formulas already give 1.x; the rest give a percent (the game uses 1 + v/100)
+function asMult(x, v){
+  const c = x[5], t = { tal: c[2], bub: c[3], vial: c[2], stamp: c[3], arc: c[2], guild: c[2] }[c[0]];
+  return t === "decayMulti" ? v : 1 + v / 100;
+}
+const num = v => {
+  if (v == null || !isFinite(v)) return "?";
+  const a = Math.abs(v);
+  if (a >= 1e6) return v.toLocaleString(loc(), { notation: "compact", maximumFractionDigits: 2 });
+  return v.toLocaleString(loc(), { maximumFractionDigits: a >= 100 ? 0 : a >= 10 ? 1 : 2 });
+};
+
+// ---------- page ----------
+// texts keep the game's placeholders: { } $ ^ ~ are numbers the game fills in; with a save, { and } get the value
+const fmt = (s, hl, val, x) => {
   let h = esc(s);
   if (hl) h = h.replace(hl, m => "<mark>" + m + "</mark>");
-  return h.replace(/[{}$^~]/g, '<i class="n">#</i>');
+  const only2 = !s.includes("{");   // a text with only } shows the main value there ("}x Cooking Speed")
+  return h.replace(/[{}$^~](x?)/g, (m, xx) => {
+    const ch = m[0];
+    if (val && (val.lv > 0 || (val.lv == null && val.on))) {
+      if (ch === "{" && val.v != null) return '<i class="v">' + num(val.v) + "</i>" + xx;
+      if (ch === "}" && val.v2 != null) return '<i class="v">' + num(val.v2) + "</i>" + xx;
+      if (ch === "}" && only2 && val.v != null) return '<i class="v">' + num(xx ? asMult(x, val.v) : val.v) + "</i>" + xx;
+    }
+    return '<i class="n">#</i>' + xx;
+  });
 };
 const name = x => lang === "ru" ? (x[2] || x[1]) : x[1];
 const text = x => lang === "ru" ? (x[4] || x[3]) : x[3];
@@ -140,6 +354,16 @@ function renderCats(){
   $("#cats").innerHTML = D.cats.map(c => `<div class="cat"><h3>${esc(c[lang])}</h3><div class="chips">${
     c.stats.map(s => `<button type="button" class="chip" data-stat="${s.id}" aria-pressed="${s.id === stat && !query}">${esc(s[lang])}<b>${s.hits.length}</b></button>`).join("")
   }</div></div>`).join("");
+}
+
+function rowHtml(x, val, hl){
+  const alt = showAlt && other(x) ? `<div class="alt">${fmt(other(x), hl, val, x)}</div>` : "";
+  const head = `<div class="nm">${fmt(name(x), hl)}</div><div class="txw"><div class="tx">${fmt(text(x), hl, val, x)}</div>${alt}</div>`;
+  if (!acct) return `<div class="row">${head}</div>`;
+  if (!val) return `<div class="row off">${head}<div class="lv"></div><div class="val"><small>${L.unread}</small></div></div>`;
+  const u = unit(x[3]), shown = val.v == null ? "" : u === "x" ? "×" + num(asMult(x, val.v)) : "+" + num(val.v) + (u === "%" ? "%" : "");
+  return `<div class="row${val.on ? "" : " off"}">${head}<div class="lv">${val.lv != null ? L.lvl + " " + num(val.lv) : ""}</div>` +
+    `<div class="val">${val.on || val.v ? shown : "0"}${val.note ? `<small>${esc(val.note)}</small>` : ""}</div></div>`;
 }
 
 function renderOut(){
@@ -153,33 +377,65 @@ function renderOut(){
   } else if (STATS[stat]) {
     hits = STATS[stat].hits; title = STATS[stat][lang];
   } else { $("#out").innerHTML = `<p class="empty">${L.pick}</p>`; return; }
+
+  const vals = new Map(); hits.forEach(i => vals.set(i, value(D.src[i])));
+  let shownHits = hits;
+  if (acct && onlyOn) shownHits = hits.filter(i => vals.get(i) && vals.get(i).on);
   const by = new Map();
-  hits.forEach(i => { const s = D.src[i][0]; if (!by.has(s)) by.set(s, []); by.get(s).push(D.src[i]); });
-  const order = [...by.keys()].sort((a, b) => by.get(b).length - by.get(a).length || a - b);
-  const many = hits.length > 60;   // long lists start collapsed to their system headers
-  $("#out").innerHTML = `<div class="res-head"><h2>${esc(title)}</h2><span class="n">${L.found(hits.length)} ${L.systems(order.length)}</span></div>
-    <div class="tools"><button type="button" id="openAll">${L.open}</button><button type="button" id="closeAll">${L.close}</button>
+  shownHits.forEach(i => { const s = D.src[i][0]; if (!by.has(s)) by.set(s, []); by.get(s).push(i); });
+  // inside a system: working bonuses first (biggest value first), then the rest in game order
+  const rank = i => { const v = vals.get(i); return v && v.on ? 2 : v ? 1 : 0; };
+  by.forEach(arr => arr.sort((a, b) => rank(b) - rank(a) || (rank(a) === 2 ? (vals.get(b).v || 0) - (vals.get(a).v || 0) : 0) || a - b));
+  const onCount = s => by.get(s).filter(i => vals.get(i) && vals.get(i).on).length;
+  const order = [...by.keys()].sort((a, b) => (acct ? onCount(b) - onCount(a) : 0) || by.get(b).length - by.get(a).length || a - b);
+  const many = shownHits.length > 60;
+
+  let tot = "";
+  if (acct) {
+    let pct = 0, flat = 0, mult = 1, nOn = 0, nRead = 0, hasMult = false;
+    hits.forEach(i => {
+      const v = vals.get(i); if (!v) return; nRead++;
+      if (!v.on || !v.v) return; nOn++;
+      const u = unit(D.src[i][3]);
+      if (u === "%") pct += v.v; else if (u === "x") { mult *= Math.max(asMult(D.src[i], v.v), 0) || 1; hasMult = true; } else flat += v.v;
+    });
+    const charPick = `<label>${L.char} <select id="charSel">${acct.chars.map(c => `<option value="${c.n}"${c.n === charN ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select></label>`;
+    tot = `<div class="totals">${pct ? `<div class="tot"><b>+${num(pct)}%</b><span>${L.t_pct}</span></div>` : ""}${flat ? `<div class="tot"><b>+${num(flat)}</b><span>${L.t_flat}</span></div>` : ""}${hasMult ? `<div class="tot"><b>×${num(mult)}</b><span>${L.t_mult}</span></div>` : ""}<div class="tot"><b>${nOn}</b><span>${L.t_count(nOn, nRead)}</span></div></div>
+      <div class="tools">${charPick}<label><input type="checkbox" id="onlyOn"${onlyOn ? " checked" : ""}> ${L.only_on}</label></div>
+      <p class="hint">${L.tot_note}</p>`;
+  } else tot = `<p class="hint">${L.nosave}</p>`;
+
+  $("#out").innerHTML = `<div class="res-head"><h2>${esc(title)}</h2><span class="n">${L.found(hits.length)} ${L.systems(new Set(hits.map(i => D.src[i][0])).size)}</span></div>` + tot +
+    `<div class="tools"><button type="button" class="lnk" id="openAll">${L.open_all}</button><button type="button" class="lnk" id="closeAll">${L.close_all}</button>
     <label><input type="checkbox" id="alt"${showAlt ? " checked" : ""}> ${L.alt}</label></div>` +
-    (hits.length ? order.map(s => `<details class="sys"${many ? "" : " open"}><summary>${esc(D.systems[s][lang])} <span class="c">${by.get(s).length}</span></summary><div class="rows">${
-      by.get(s).map(x => `<div class="row"><div class="nm">${fmt(name(x), hl)}</div><div><div class="tx">${fmt(text(x), hl)}</div>${showAlt && other(x) ? `<div class="alt">${fmt(other(x), hl)}</div>` : ""}</div></div>`).join("")
-    }</div></details>`).join("") : `<p class="empty">${L.none}</p>`);
+    (shownHits.length ? order.map(s => {
+      const on = acct ? onCount(s) : 0;
+      return `<details class="sys"${many ? "" : " open"}><summary>${esc(D.systems[s][lang])} <span class="c">${by.get(s).length}</span>${acct && on ? `<span class="sv">✓ ${on}</span>` : ""}</summary><div class="rows${acct ? "" : " nosave"}">${
+        by.get(s).map(i => rowHtml(D.src[i], vals.get(i), hl)).join("")
+      }</div></details>`;
+    }).join("") : `<p class="empty">${L.none}</p>`);
 }
 
 function applyLang(){
   L = T[lang];
   document.documentElement.lang = lang;
-  document.querySelectorAll("[data-i]").forEach(e => e.textContent = L[e.dataset.i]);
+  document.querySelectorAll("[data-i]").forEach(e => e.textContent = typeof L[e.dataset.i] === "string" ? L[e.dataset.i] : "");
   document.querySelectorAll(".lang button").forEach(b => b.setAttribute("aria-pressed", b.dataset.lang === lang));
-  $("#q").placeholder = L.search;
+  $("#q").placeholder = L.search; $("#nick").placeholder = "IdleOn nick"; $("#save").placeholder = "{ … }";
   $("#build").textContent = D.build ? L.build(D.build) : "";
   renderCats(); renderOut();
 }
+let lastMsg = null;
+function showMsg(kind, key, arg){
+  lastMsg = [kind, key, arg];
+  const v = L[key]; $("#msg").className = "msg " + (kind === "ok" ? "ok" : "err");
+  $("#msg").textContent = typeof v === "function" ? v(arg) : v || "";
+}
 
-document.querySelectorAll(".lang button").forEach(b => b.onclick = () => { lang = b.dataset.lang; store.set("sf-lang", lang); applyLang(); });
+document.querySelectorAll(".lang button").forEach(b => b.onclick = () => { lang = b.dataset.lang; store.set("sf-lang", lang); applyLang(); if (lastMsg) showMsg(...lastMsg); });
 $("#cats").addEventListener("click", e => {
   const b = e.target.closest("[data-stat]"); if (!b) return;
   stat = b.dataset.stat; query = ""; $("#q").value = ""; store.set("sf-stat", stat);
-  history.replaceState(null, "", "#" + stat);
   renderCats(); renderOut();
 });
 let tmr;
@@ -187,11 +443,53 @@ $("#q").addEventListener("input", e => { clearTimeout(tmr); tmr = setTimeout(() 
 $("#out").addEventListener("click", e => {
   if (e.target.id === "openAll" || e.target.id === "closeAll") document.querySelectorAll("details.sys").forEach(d => d.open = e.target.id === "openAll");
 });
-$("#out").addEventListener("change", e => { if (e.target.id === "alt") { showAlt = e.target.checked; store.set("sf-alt", showAlt ? "1" : "0"); renderOut(); } });
-const fromHash = () => { const h = decodeURIComponent(location.hash.slice(1)); if (STATS[h]) { stat = h; query = ""; $("#q").value = ""; } };
-window.addEventListener("hashchange", () => { fromHash(); renderCats(); renderOut(); });
-fromHash();
+$("#out").addEventListener("change", e => {
+  if (e.target.id === "alt") { showAlt = e.target.checked; store.set("sf-alt", showAlt ? "1" : "0"); }
+  else if (e.target.id === "onlyOn") { onlyOn = e.target.checked; store.set("sf-on", onlyOn ? "1" : "0"); }
+  else if (e.target.id === "charSel") { charN = Number(e.target.value); store.set("sf-char", charN); }
+  else return;
+  renderOut();
+});
+
+function load(text, key, arg){
+  try { setAccount(parseSave(text)); showMsg("ok", key || "ok", arg); return true; }
+  catch (e) { showMsg("err", e.message === "nokey" ? "e_nokey" : null, e.message); if (e.message !== "nokey") $("#msg").textContent = e.message; return false; }
+}
+const isNick = s => /^[A-Za-z0-9_\-]{2,30}$/.test(s.trim());
+async function loadNick(nm){
+  nm = nm.trim(); if (!isNick(nm)) return;
+  $("#nick").value = nm;
+  const btn = $("#nickBtn"); btn.disabled = true;
+  showMsg("ok", "nick_loading", nm);
+  try {
+    const r = await fetch(`https://cdn.idleonefficiency.com/profiles/${encodeURIComponent(nm.toLowerCase())}.json?t=${Date.now()}`, { cache: "no-store" });  // the CDN keeps profiles up to 30 min; the query skips stale copies
+    if (!r.ok) { showMsg("err", "e_nick", { name: nm, status: r.status }); return; }
+    const lm = Date.parse(r.headers.get("last-modified") || ""), when = isNaN(lm) ? "" : new Date(lm).toLocaleString(loc(), { dateStyle: "short", timeStyle: "short" });
+    if (load(await r.text(), "ok_nick", { name: nm, when })) { store.set("sf-nick", nm); store.set("sf-src", "nick"); store.del("sf-save"); }
+  } catch (e) { showMsg("err", "e_nickfail", { name: nm, err: e.message }); }
+  finally { btn.disabled = false; }
+}
+$("#nickForm").addEventListener("submit", e => { e.preventDefault(); loadNick($("#nick").value); });
+$("#go").addEventListener("click", () => {
+  const t = $("#save").value;
+  if (isNick(t)) { loadNick(t); return; }
+  if (load(t)) { store.set("sf-save", t); store.set("sf-src", "raw"); $("#save").value = ""; }
+});
+$("#save").addEventListener("paste", () => setTimeout(() => $("#go").click(), 0));
+$("#file").addEventListener("change", e => { const f = e.target.files[0]; if (!f) return; f.text().then(t => { $("#save").value = t; $("#go").click(); }); e.target.value = ""; });
+$("#forget").addEventListener("click", () => {
+  for (const k of ["sf-save", "sf-src", "sf-nick"]) store.del(k);
+  $("#nick").value = ""; try { history.replaceState(null, "", location.pathname); } catch(e){}
+  setAccount(null); showMsg("ok", "forgot");
+});
+
+// #stat-id opens a stat; #Nick loads a profile (the miniToolBox passes the nick this way)
+const h = decodeURIComponent(location.hash.slice(1));
+if (STATS[h]) stat = h;
 applyLang();
+if (!STATS[h] && isNick(h)) loadNick(h);
+else if (store.get("sf-src") === "nick" && store.get("sf-nick")) loadNick(store.get("sf-nick"));
+else { const s = store.get("sf-save"); if (s) load(s, "ok_saved"); }
 </script>
 </body>
 </html>

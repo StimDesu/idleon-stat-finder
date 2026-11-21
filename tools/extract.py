@@ -83,6 +83,37 @@ SOURCES = [
     ("RANDOlist", "Other bonuses (misc lists)", "Прочие бонусы (разные списки)", None, None),
     ("RandoListo2", "Other bonuses (misc lists)", "Прочие бонусы (разные списки)", None, None),
 ]
+def fnum(s):
+    try:
+        f = float(s)
+    except (TypeError, ValueError):
+        return 0
+    return int(f) if f.is_integer() and abs(f) < 1e15 else f
+
+
+# How the page reads a row's current value from the save: list -> (row index, row) -> calc spec.
+# Each spec is interpreted by value() in src/template.html; the formulas are the game's base values
+# (most systems have extra account multipliers on top, which are not counted - see the page notes).
+CALC = {
+    "StatueInfo": lambda i, r: ["statue", i, fnum(r[3])],                 # StatueLevels_N[i][0] * [3], x2 onyx
+    "StarSigns": lambda i, r: ["sign", i],                               # equipped in PVtStarSign_N; number is in the text
+    "ShrineInfo": lambda i, r: ["shrine", i, fnum(r[2]), fnum(r[3])],    # (lv-1)*[3] + [2]
+    "GuildBonuses": lambda i, r: ["guild", i, r[6], fnum(r[4]), fnum(r[5])],   # f5([6],[4],[5],Guild[0][i])
+    "BribeDescriptions": lambda i, r: ["bribe", i, fnum(r[5])],          # BribeStatus[i] == 1
+    "ArcadeShopInfo": lambda i, r: ["arc", i, r[3], fnum(r[1]), fnum(r[2])],
+    "RegAchieves": lambda i, r: ["ach", i],                              # AchieveReg[i] == -1
+    "PrayerInfo": lambda i, r: ["prayer", i, fnum(r[3])],                # round([3] * max(1, 1+(lv-1)/10)) if equipped
+    "UpgradeVault": lambda i, r: ["lv", "UpgVault", i, fnum(r[5])],
+    "AtomInfo": lambda i, r: ["lv", "Atoms", i, fnum(r[4])],
+    "GrimoireUpg": lambda i, r: ["lv", "Grimoire", i, fnum(r[5])],
+    "ArcaneUpg": lambda i, r: ["lv", "Arcane", i, fnum(r[5])],
+    "CompassUpg": lambda i, r: ["lv", "Compass.0", i, fnum(r[5])],
+    "MealINFO": lambda i, r: ["lv", "Meals.0", i, fnum(r[2])],
+    "SigilDesc": lambda i, r: ["sigil", i, [fnum(r[3]), fnum(r[4]), fnum(r[8]), fnum(r[10]), fnum(r[12])]],
+    "ChipDesc": lambda i, r: ["chip", i, fnum(r[11])],                    # chip i in Lab[1+n]
+    "JewelDesc": lambda i, r: ["jewel", i, fnum(r[12])],                  # Lab[14][i] == 1
+}
+
 SKIP = {"Filler", "filler", "Blank", "txt", "Name", "desc", "Nothing_yet..."}
 LETTERS = re.compile(r"[A-Za-z].*[A-Za-z].*[A-Za-z]")
 
@@ -121,7 +152,7 @@ def main():
                 ru.setdefault(k, v)
     tr = lambda s: clean(ru[s]) if s in ru else None
 
-    systems, src = [], []
+    systems, src, seen_rows = [], [], set()
 
     def system(en, ru_):
         key = (en, ru_)
@@ -129,19 +160,32 @@ def main():
             systems.append({"en": en, "ru": ru_})
         return [(s["en"], s["ru"]) for s in systems].index(key)
 
-    def add(si, name, texts, post=None):
+    def add(si, name, texts, post=None, calc=None, join=False):
+        """One row per bonus text: [system, name EN, name RU, text EN, text RU, calc].
+        calc tells the page how to read the current value from a save (see `value()` in src/template.html).
+        join=True puts all texts of the source in one row (talents: long and short description of one number)."""
         if name and "FILLER" in name.upper():
             return
         texts = [t.replace("{}", "{") for t in texts if is_text(t)]
+        if join and len(texts) > 1:
+            en_ = "\n".join(clean(t) for t in texts)
+            ru_ = "\n".join(tr(t) or clean(t) for t in texts) if any(tr(t) for t in texts) else None
+            key = (si, clean(name) if name else "", en_)
+            if key not in seen_rows:
+                seen_rows.add(key)
+                src.append([si, clean(name) if name else "", tr(name) if name else "", en_, ru_, calc])
+            return
         seen = set()
         for t in texts:
             if t in seen:
                 continue
             seen.add(t)
-            row = [si, clean(name) if name else "", tr(name) if name else "", clean(t), tr(t)]
+            row = [si, clean(name) if name else "", tr(name) if name else "", clean(t), tr(t), calc]
             if post:
                 row[3], row[4] = post(row[3]), post(row[4]) if row[4] else row[4]
-            if row[3]:
+            key = (si, row[1], row[3])
+            if row[3] and key not in seen_rows:   # some lists repeat a row (e.g. achievements for two platforms)
+                seen_rows.add(key)
                 src.append(row)
 
     def ach(t):
@@ -159,30 +203,27 @@ def main():
         n = names[i] if i < len(names) else ""
         if n in ("", "_", "BLAH") or n.startswith("FILLER"):
             continue
-        add(si, n, [r[0][0], r[2][0]])
-    # Alchemy: 4 bubble cauldrons, then vials
+        p = r[1]   # GetTalentNumber(1,t): f5(p[2], p[0], p[1], lv); GetTalentNumber(2,t): p[3..5]
+        add(si, n, [r[0][0], r[2][0]], calc=["tal", i, p[2], fnum(p[0]), fnum(p[1]), p[5], fnum(p[3]), fnum(p[4])], join=True)
+    # Alchemy: 4 bubble cauldrons, then vials. Value f5([3], [1], [2], CauldronInfo[c][i]); key [15]
     alch = literal(njs, "AlchemyDescription")
     for c, (en, ru_) in enumerate([("Bubbles: Power (orange)", "Пузыри: сила (оранжевые)"),
                                    ("Bubbles: Quicc (green)", "Пузыри: ловкость (зелёные)"),
                                    ("Bubbles: High-IQ (purple)", "Пузыри: интеллект (фиолетовые)"),
                                    ("Bubbles: Kazam (yellow)", "Пузыри: казам (жёлтые)")]):
         si = system(en, ru_)
-        for r in alch[c]:
-            add(si, r[0], [r[9]])
+        for i, r in enumerate(alch[c]):
+            add(si, r[0], [r[9]], calc=["bub", c, i, r[3], fnum(r[1]), fnum(r[2]), 1 if "ACTIVE" in str(r[15]) else 0])
     si = system("Alchemy vials", "Флаконы алхимии")
-    for r in alch[4]:
-        add(si, r[0], [r[9]])
+    for i, r in enumerate(alch[4]):
+        add(si, r[0], [r[9]], calc=["vial", i, r[3], fnum(r[1]), fnum(r[2])])
     # Cards: CardStuff[world][i] = [mob id, code, ?, bonus text, value]
     si = system("Cards", "Карты")
     for grp in literal(njs, "CardStuff"):
         for r in grp:
             if isinstance(r, list) and len(r) > 3:
                 n = mobs.get(r[0], r[0])
-                src_n = len(src)
-                add(si, n, [r[3]])
-                for x in src[src_n:]:   # show the value per card level
-                    x[3] = x[3].replace("{", str(r[4]))
-                    x[4] = x[4].replace("{", str(r[4])) if x[4] else x[4]
+                add(si, n, [r[3]], calc=["card", r[0], fnum(r[2]), fnum(r[4])])   # value = [4] per card level
     # Item definitions: stamps (desc_line1 is a CSV, text at [11]); gear unique stats; other desc lines
     it = itemdefs.parse(njs)
     si_st = system("Stamps", "Штампы")
@@ -192,11 +233,15 @@ def main():
         dn = d.get("displayName", k)
         if d.get("Type") == "STAMP":
             f = str(d.get("desc_line1", "")).split(",")
-            if len(f) > 11:
-                add(si_st, dn, [f[11]])
+            m = re.match(r"Stamp([ABC])(\d+)$", k)
+            if len(f) > 11 and m:   # StampLv[cat][n-1]; value f5(f[1], f[2], f[3], lv)
+                add(si_st, dn, [f[11]], calc=["stamp", "ABC".index(m.group(1)), int(m.group(2)) - 1, f[1], fnum(f[2]), fnum(f[3])])
             continue
         if d.get("kind") == "Equip":
-            add(si_eq, dn, [str(d[u]) for u in ("UQ1txt", "UQ2txt") if str(d.get(u, "0")) not in ("0", "")])
+            for u in ("1", "2"):
+                t = str(d.get("UQ%stxt" % u, "0"))
+                if t not in ("0", ""):   # gear unique stat: base UQval + stone upgrades (EMm*_N[slot].UQval)
+                    add(si_eq, dn, [t], calc=["gear", k, int(u), fnum(d.get("UQ%sval" % u, 0))])
             continue
         ls = [str(d.get("desc_line%d" % n, "")) for n in range(1, 9)]
         ls = [x for x in ls if re.search(r"[{}]", x)]
@@ -210,6 +255,9 @@ def main():
             print("skip", lst, e)
             continue
         si = system(en, ru_)
+        # rows of a flat list keep their index (the save keeps levels by the same index)
+        flat = all(isinstance(r, list) and any(isinstance(x, str) for x in r) for r in v)
+        index = {id(r): i for i, r in enumerate(v)} if flat else {}
         for r in rows(v):
             if ti == "task":
                 if len(r) > 1 and isinstance(r[0], str):
@@ -220,7 +268,18 @@ def main():
                 ts = [x for x in r if x is not n]
             else:
                 ts = [r[i] for i in ti if i < len(r)]
-            add(si, n if n and LETTERS.search(n) else None, ts, ach if lst == "RegAchieves" else None)
+            calc = None
+            if lst in CALC and id(r) in index:
+                try:
+                    calc = CALC[lst](index[id(r)], r)
+                except (ValueError, IndexError):
+                    calc = None
+            add(si, n if n and LETTERS.search(n) else None, ts, ach if lst == "RegAchieves" else None, calc)
+    # Base stats of equipped gear, tools and obols: one row per stat
+    for f, t in (("STR", "+{_STR"), ("AGI", "+{_AGI"), ("WIS", "+{_WIS"), ("LUK", "+{_LUK"),
+                 ("Defence", "+{_Defence"), ("Weapon_Power", "+{_Weapon_Power")):
+        add(si_eq, "Equipped_gear,_tools_and_obols", [t], calc=["gearstat", f])
+        src[-1][2] = "Надетое снаряжение, инструменты и оболы"   # a row of this page, not a game text
 
     # Stats: match texts (EN) with the patterns of tools/stats.py
     cats = []
@@ -243,7 +302,11 @@ def main():
 
     acf = os.path.join(a.game, "..", "..", "appmanifest_1476970.acf")
     build = re.search(r'"buildid"\s+"(\d+)"', open(acf).read()).group(1) if os.path.exists(acf) else None
-    data = {"build": build, "systems": systems, "src": src, "cats": cats}
+    # base stats of every wearable (for the "Equipped gear" rows): key -> [STR, AGI, WIS, LUK, Defence, Weapon_Power]
+    gear = {k: [fnum(d.get(f, 0)) for f in ("STR", "AGI", "WIS", "LUK", "Defence", "Weapon_Power")]
+            for k, d in it.items() if d.get("kind") == "Equip"}
+    gear = {k: v for k, v in gear.items() if any(v)}
+    data = {"build": build, "systems": systems, "src": src, "cats": cats, "gear": gear}
     with open(os.path.join(ROOT, "src", "data.json"), "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
     n_ru = sum(1 for s in src if s[4])
