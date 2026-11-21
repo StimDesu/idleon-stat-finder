@@ -160,6 +160,7 @@ const T = {
     unread: "not read from save", lvl: "lv", eq_not: "not equipped", eq_yes: "equipped", map: "on its map",
     cur_char: "this character", fixed: "unlocked",
     f_title: "Game formula", f_char: n => "for " + n, f_nc: "not counted",
+    f_cook: 'The exact kitchen formulas (cooking speed, new recipe fire, meal bonuses, kitchen costs) with every multiplier from your save are in the <a href="https://stimdesu.github.io/idleon-cooking-planner/" target="_blank" rel="noopener">Cooking Planner</a>.',
     f_note: n => `The game's own formula for this stat, term by term, from your save. ${n} terms are not counted yet (their systems are not ported, or the save does not hold them), so the in-game number can be higher. The rows below list every source of the stat.`,
     foot: "All names, texts and base formulas are read from the game code; # marks the number the game fills in. Russian texts are from the IdleOn Russian translation.",
     build: b => "Game build " + b + ".",
@@ -182,6 +183,7 @@ const T = {
     unread: "не читается из сохранения", lvl: "ур.", eq_not: "не надето", eq_yes: "надето", map: "на своей карте",
     cur_char: "этот персонаж", fixed: "открыто",
     f_title: "Формула игры", f_char: n => "для " + n, f_nc: "не считается",
+    f_cook: 'Точные формулы кухни (скорость готовки, огонь новых рецептов, бонусы блюд, цены кухонь) со всеми множителями из сохранения — в <a href="https://stimdesu.github.io/idleon-cooking-planner/" target="_blank" rel="noopener">Планировщике кулинарии</a>.',
     f_note: n => `Это собственная формула игры для этого стата, по слагаемым, из вашего сохранения. Не учтено слагаемых: ${n} (их системы ещё не перенесены или их нет в сохранении), поэтому в игре число может быть больше. Ниже — список всех источников стата.`,
     foot: "Все названия, тексты и базовые формулы взяты из кода игры; # — число, которое игра подставляет. Русские тексты — из русификатора IdleOn.",
     build: b => "Сборка игры " + b + ".",
@@ -983,10 +985,69 @@ function sexpFormula(sk){
   return { total, show: "×" + num(total), groups: [{ en: "Skill bonuses (× companion 32)", ru: "Бонусы навыка (× компаньон 32)", sum: "+" + num(sumT(terms)) + "%", terms },
     { en: "All skills EXP", ru: "Опыт всех навыков", sum: "+" + num(all) + "%", terms: [["See 'Skill EXP'", "См. «Опыт навыков»", all]] }] };
 }
-const FORMULAS = { mineff: () => effFormula("Mining"), chopeff: () => effFormula("Choppin"), fisheff: () => effFormula("Fishing"), catcheff: () => effFormula("Catching"),
+function slotPower(slot){
+  const ch = model().ch, id = ch.worn[1][0][slot], up = asArr(ch.worn[1][1][slot] != null ? ch.worn[1][1][slot] : ch.worn[1][1][String(slot)]) || {};
+  return id && id !== "Blank" ? (Number((GM.gear[id] || {}).Weapon_Power) || 0) + (Number(up.Weapon_Power) || 0) : 0;
+}
+function trapEffFormula(){
+  const M = model(), T = (w, t) => M.tal(w, t), all = skillEffFormula(), a = statFormula("AGI").total, tool = slotPower(4);
+  const base = [["Base", "База", 10], ["Trap power^1.3", "Сила ловушек^1.3", Math.pow(tool, 1.3)], [`AGI (${num(a)})^0.6 × talent 367`, `Ловкость (${num(a)})^0.6 × талант 367`, Math.pow(a + 1, .6) * (1 + T(1, 367) / 100)],
+    ["Stamps", "Штампы", M.stamp("TrappingEff")], ["All skills base", "База всех навыков", sumT(all.groups[1].terms)]];
+  const mults = [["Trapping level / 100", "Уровень ловушек / 100", 1 + M.skill(7) / 100], ["All skills multiplier", "Множитель всех навыков", all.total],
+    ["Bubble TrapACTIVE", "Пузырь TrapACTIVE", 1 + (M.bubble("TrapACTIVE") || 0) / 100], ["Talent 311 × (atom + log critters)", "Талант 311 × (атом + log зверьков)", 1 + T(1, 311) * (atomBonus(1) + getLOG(ownedItem("Critter1"))) / 100],
+    ["Talent 263, cards, star signs", "Талант 263, карты, знаки", 1 + (T(1, 263) + M.card(57) + M.sign("TrapEff")) / 100],
+    ["Post office, trap minigame, star talents, rift", "Почта, мини-игра ловушек, звёздные таланты, рифт", null]];
+  const total = sumT(base) * prodT(mults);
+  return { total, show: num(total), groups: [{ en: "Base", ru: "База", sum: num(sumT(base)), terms: base }, { en: "Multipliers", ru: "Множители", sum: "×" + num(prodT(mults)), terms: mults }] };
+}
+function xpOf(terms, extra, multTerms){
+  const all = skillExpFormula().total, mult = multTerms ? prodT(multTerms) : 1 + model().comp(32);
+  const total = Math.max(.1, mult * (1 + sumT(terms) / 100) + (extra == null ? all : extra) / 100);
+  return { total, show: "×" + num(total), groups: [{ en: "Skill bonuses", ru: "Бонусы навыка", sum: "+" + num(sumT(terms)) + "%", terms },
+    { en: "All skills EXP", ru: "Опыт всех навыков", sum: "+" + num(all) + "%", terms: [["See 'Skill EXP'", "См. «Опыт навыков»", all]] }] };
+}
+function trapExpFormula(){
+  const M = model(), T = (w, t) => M.tal(w, t);
+  return xpOf([["Talents 312, 265, 75", "Таланты 312, 265, 75", T(1, 312) + T(1, 265) + T(1, 75)], ["Stamps", "Штампы", M.stamp("TrappingExp")], ["Cards", "Карты", M.card(58)],
+    ["Arcade 14", "Аркада 14", M.arcade(14)], ["Post office, trap minigame, rift, voting", "Почта, мини-игра ловушек, рифт, голосование", null]]);
+}
+function worshipFormula(){
+  const M = model(), T = (w, t) => M.tal(w, t), all = skillEffFormula(), w = statFormula("WIS").total;
+  const tool = slotPower(5) * (1 + (M.bubble("ToolM") || 0) / 100) + 4;
+  const base = [["Base", "База", 10], ["Skull power^1.3", "Сила черепа^1.3", Math.pow(tool, 1.3)], [`WIS (${num(w)})^0.6 × talent 532`, `Мудрость (${num(w)})^0.6 × талант 532`, Math.pow(w + 1, .6) * (1 + T(1, 532) / 100)],
+    ["Stamps", "Штампы", M.stamp("WorshipEff")], ["All skills base", "База всех навыков", sumT(all.groups[1].terms)]];
+  const mults = [["Worship level / 200", "Уровень поклонения / 200", 1 + M.skill(9) / 200], ["Star signs", "Знаки зодиака", 1 + M.sign("WorshEff") / 100],
+    ["All skills multiplier", "Множитель всех навыков", all.total], ["Talent 476 × (atom + log souls)", "Талант 476 × (атом + log душ)", 1 + T(1, 476) * (atomBonus(1) + getLOG(ownedItem("Soul1"))) / 100],
+    ["Post office, star talents, rift", "Почта, звёздные таланты, рифт", null]];
+  const total = sumT(base) * prodT(mults);
+  return { total, show: num(total), groups: [{ en: "Worship efficiency: base", ru: "Эффективность поклонения: база", sum: num(sumT(base)), terms: base }, { en: "Multipliers", ru: "Множители", sum: "×" + num(prodT(mults)), terms: mults }] };
+}
+function labExpFormula(){   // LaboratoryEXPmulti: bonus part (the game also scales by lab efficiency vs. the lab's defence)
+  const M = model(), T = (w, t) => M.tal(w, t);
+  const terms = [["Cards", "Карты", M.card(79)], ["Chip", "Чип", M.chipVal("labexp")], ["Talent 538", "Талант 538", T(1, 538)], ["Meals", "Блюда", M.meal("Lexp")],
+    ["Stamps", "Штампы", M.stamp("LabExp")], ["Vials LabXP", "Флаконы LabXP", M.vial("LabXP")], ["Bubble LabXpACTIVE", "Пузырь LabXpACTIVE", M.bubble("LabXpACTIVE")],
+    ["Gear", "Снаряжение", M.etc("65")], ["Sigil 19", "Сигил 19", M.sigil(19)], ["Arcade 29", "Аркада 29", M.arcade(29)], ["Vault 55", "Хранилище 55", M.vault(55)],
+    ["Post office, bubonic, line width part, lab jewel 102, star sign 60, rift, voting, lamp, sets, palette", "Почта, бубонный, часть за ширину линии, самоцвет 102, знак 60, рифт, голосование, лампа, сеты, палитра", null]];
+  const mult = [["Companion 16", "Компаньон 16", 1 + M.comp(16)], ["Companion 32", "Компаньон 32", 1 + M.comp(32)], ["Legend talent 15, sushi, lab efficiency vs. defence", "Легендарный талант 15, суши, эффективность против защиты", null]];
+  const total = prodT(mult) * (1 + sumT(terms) / 100);
+  return { total, show: "×" + num(total), groups: [{ en: "Bonuses (%)", ru: "Бонусы (%)", sum: "+" + num(sumT(terms)) + "%", terms }, { en: "Multipliers", ru: "Множители", sum: "×" + num(prodT(mult)), terms: mult }] };
+}
+function multiFormula(sk){   // SkillStats("MiningMultiOre" / "ChoppinMultiOre")
+  const { M, T, lv, tool } = toolSkill(sk), r = Math.sqrt(tool);
+  const act = M.bubble(sk === "Mining" ? "MiningACTIVE" : "MultiLogACTIVE") || 0;
+  const terms = sk === "Mining" ? [["Stamps", "Штампы", M.stamp("DoubleMin")], ["Tool power", "Сила инструмента", 100 * r / (10 * r + 50)], ["Mining level", "Уровень добычи", 100 * .1 * lv / (lv + 40)],
+      ["Talent 102", "Талант 102", T(1, 102)], ["Bubble MiningACTIVE (equipped)", "Пузырь MiningACTIVE (если надет)", act], ["Star signs", "Знаки зодиака", M.sign("MultiOre")]]
+    : [["Stamps", "Штампы", M.stamp("DoubleChop")], ["Gear", "Снаряжение", M.etc("6")], ["Tool power", "Сила инструмента", 100 * r / (4 * r + 50)], ["Choppin level", "Уровень рубки", 100 * .15 * lv / (lv + 40)],
+      ["Bubble MultiLogACTIVE (equipped)", "Пузырь MultiLogACTIVE (если надет)", act], ["Star signs", "Знаки зодиака", M.sign("MultiLog")]];
+  const cap = act < 20 ? 100 : 300, total = Math.min(cap, sumT(terms));
+  return { total, show: num(total) + "%", groups: [{ en: `Sum (cap ${cap}% + caverns cosmos, not counted)`, ru: `Сумма (потолок ${cap}% + космос пещер, не считается)`, sum: num(sumT(terms)) + "%", terms }] };
+}
+const FORMULAS = { multiore: () => multiFormula("Mining"), multilog: () => multiFormula("Choppin"), trapeff: trapEffFormula, trapexp: trapExpFormula, worship: worshipFormula, labexp: labExpFormula, mineff: () => effFormula("Mining"), chopeff: () => effFormula("Choppin"), fisheff: () => effFormula("Fishing"), catcheff: () => effFormula("Catching"),
   minexp: () => sexpFormula("Mining"), chopexp: () => sexpFormula("Choppin"), fishexp: () => sexpFormula("Fishing"), catchexp: () => sexpFormula("Catching"),
   coins: coinsFormula, fightafk: fightAfkFormula, skilleff: skillEffFormula, skillexp: skillExpFormula, move: moveFormula, hp: hpFormula, mp: mpFormula, critc: critcFormula, critd: critdFormula, def: defFormula, acc: accFormula, wp: wpFormula, classexp: expFormula, luk: () => statFormula("LUK"), str: () => statFormula("STR"), agi: () => statFormula("AGI"), wis: () => statFormula("WIS"), drop: dropFormula };
+const COOK_IDS = ["cookspd", "recipe", "mealbonus", "kitchen"];
 function formulaHtml(id){
+  if (COOK_IDS.includes(id)) return `<div class="card formula"><div class="res-head"><h2>${L.f_title}</h2></div><p class="hint">${L.f_cook}</p></div>`;
   if (!acct || !FORMULAS[id]) return "";
   let f;
   try { f = FORMULAS[id](); } catch (e) { return `<p class="hint">${esc(e.message)}</p>`; }
