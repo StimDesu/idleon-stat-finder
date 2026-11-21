@@ -553,6 +553,17 @@ function model(){
     return [5, 10, 2, 4, 1, 2][i] * (1 + M.comp(51)) * (1 + all / 100) * Math.max(0, Math.ceil((M.ola(255) - i) / 6));
   };
   M.shimmer = i => M.ola(i);
+  // Holes("MonumentROGbonuses", t, i): caverns monuments (t 0 Bravery, 1 Justice, 2 Wisdom); cosmos only counted for Bravery
+  const holes = list(A("Holes")).map(list), hv = (r, i) => at(holes[r], i);
+  const fount = t => { const m = at(list(holes[32])[t], 13); return Math.round((m === 0 ? 1 : 1.5 + .5 * m) * at(list(holes[31])[t], 13) * (GM.fount13[t] || 0)); };
+  const monRaw = (t, i, mul) => { const base = GM.mon[10 * t + i] || 0, lv = hv(15, 10 * t + i);
+    return base < 30 ? lv * base * Math.max(1, mul) : .1 * Math.ceil(lv / (250 + lv) * 10) * base * Math.max(1, mul); };
+  M.monument = (t, i) => {
+    if (!holes.length) return 0;
+    const f = 1 + fount(t) / 100;
+    if (i === 9) return monRaw(t, 9, f);
+    return monRaw(t, i, (1 + monRaw(t, 9, f) / 100 + (t === 0 ? Math.floor(GM.cosmo00 * hv(4, 0)) / 100 : 0)) * f);
+  };
   // GetSetBonus(NAME,"Bonus"): sets unlocked for good are listed in OptLacc[379] (wearing every part also counts; not checked here)
   M.set = name => String(list(A("OptLacc"))[379] || "").split(",").includes(name) ? (GM.sets[name] || 0) : 0;   // x AllShimmerBonuses = max(1, ...artifact 31), artifact not counted
   M.skill = i => lv0(charN)[i] || 0;
@@ -624,7 +635,7 @@ function dropFormula(){
     ["Grimoire: Skull of Major Droprate", "Гримуар: Skull of Major Droprate", M.grim(44)],
     ["Upgrade vault: Drops for Days", "Хранилище: Drops for Days", M.vault(18)],
     ["Companions 22, 158, 111", "Компаньоны 22, 158, 111", M.comp(22) + M.comp(158) + M.comp(111)],
-    ["Orion owl", "Сова Орион", M.owl(4)], ["Efaunt set", "Сет Efaunt", M.set("EFAUNT_SET")],
+    ["Orion owl", "Сова Орион", M.owl(4)], ["Caverns monument", "Монумент пещер", M.monument(2, 6)], ["Efaunt set", "Сет Efaunt", M.set("EFAUNT_SET")],
   ];
   const t1 = [
     ["Talent 279", "Талант 279", T(1, 279)], ["Talent 24", "Талант 24", T(1, 24)],
@@ -691,7 +702,7 @@ function expFormula(){   // ExpMulti(0): class EXP multiplier from monsters
     ["Grimoire, vault (see above)", "Гримуар, хранилище (выше)", sum(l4)],
     ["Account option 421", "Опция аккаунта 421", M.ola(421)],
     ["Stamps: class EXP", "Штампы: опыт класса", M.stamp("classxp")],
-    ["Orion owl", "Сова Орион", M.owl(0)], ["Iron set", "Железный сет", M.set("IRON_SET")],
+    ["Orion owl", "Сова Орион", M.owl(0)], ["Caverns monument", "Монумент пещер", M.monument(1, 6)], ["Iron set", "Железный сет", M.set("IRON_SET")],
     ["Golden food, Owl, voting, monument, sets, exotic, friends, shimmer, minehead", "Золотая еда, сова, голосование, монумент, сеты, экзотика, друзья, мерцание, minehead", null],
   ];
   const adds = [
@@ -978,13 +989,13 @@ function effFormula(sk){
     const s = st("STR"), t142 = 1 + T(1, 142) / 100;
     base = [["Base", "База", 12], ["Tool power^1.3", "Сила инструмента^1.3", Math.pow(tool, 1.3)], [`STR (${num(s)})^0.6`, `Сила (${num(s)})^0.6`, Math.pow(s + 1, .6) * t142], ["Stamps", "Штампы", M.stamp("BaseMinEff")], ["All skills base", "База всех навыков", allBase]];
     mults = [["Mining level / 200", "Уровень добычи / 200", 1 + lv / 200], ["STR curve", "Кривая силы", 1 + Math.pow(s / 100, .35) * t142],
-      ["Talent 85 + gear", "Талант 85 + снаряжение", 1 + (T(1, 85) + M.etc("10") + M.set("COPPER_SET")) / 100], ["Cards, star signs, vials", "Карты, знаки, флаконы", 1 + (M.card(24) + M.sign("MiningEff") + M.vial("MinEff")) / 100],
+      ["Talent 85 + gear", "Талант 85 + снаряжение", 1 + (T(1, 85) + M.etc("10") + M.set("COPPER_SET")) / 100], ["Cards, star signs, vials", "Карты, знаки, флаконы", 1 + (M.card(24) + M.sign("MiningEff") + M.vial("MinEff") + M.monument(0, 0)) / 100],
       ["Tool power %", "Сила инструмента %", 1 + tool / 100], ["Bubble MinEff", "Пузырь MinEff", 1 + (M.bubble("MinEff") || 0) / 100],
       ["Talent 101 × (atom + log copper)", "Талант 101 × (атом + log меди)", 1 + T(1, 101) * (atomBonus(1) + getLOG(ownedItem("Copper"))) / 100]];
   } else if (sk === "Choppin") {
     const w = st("WIS"), a = 1 + T(1, 462) / 100, b = 1 + T(1, 532) / 100;
     base = [["Base", "База", 8], ["Tool power^1.3", "Сила инструмента^1.3", Math.pow(tool, 1.3)], [`WIS (${num(w)})^0.6`, `Мудрость (${num(w)})^0.6`, Math.pow((w + 2) * a * b, .6)], ["Stamps", "Штампы", M.stamp("BaseChopEff")], ["All skills base", "База всех навыков", allBase]];
-    mults = [["Choppin level / 200", "Уровень рубки / 200", 1 + lv / 200], ["Star signs", "Знаки зодиака", 1 + M.sign("ChopEff") / 100], ["Bubble ChopEff", "Пузырь ChopEff", 1 + (M.bubble("ChopEff") || 0) / 100],
+    mults = [["Choppin level / 200", "Уровень рубки / 200", 1 + lv / 200], ["Star signs", "Знаки зодиака", 1 + M.sign("ChopEff") / 100], ["Bubble ChopEff + monument", "Пузырь ChopEff + монумент", 1 + ((M.bubble("ChopEff") || 0) + M.monument(2, 0)) / 100],
       ["WIS curve", "Кривая мудрости", 1 + Math.pow(w * a / 100, .35) * b], ["Talent 445 + gear", "Талант 445 + снаряжение", 1 + (T(1, 445) + M.etc("11") + M.set("COPPER_SET")) / 100],
       ["Cards, vials, achievement 352", "Карты, флаконы, достижение 352", 1 + (M.card(27) + M.vial("ChopEff") + 10 * M.ach(352)) / 100], ["Tool power %", "Сила инструмента %", 1 + tool / 100],
       ["Talent 461 × log leaves", "Талант 461 × log листьев", 1 + T(1, 461) * getLOG(ownedItem("Leaf1")) / 100]];
@@ -999,7 +1010,7 @@ function effFormula(sk){
     const a = st("AGI"), t = 1 + T(1, 296) / 100, t2 = 1 + T(1, 367) / 100;
     base = [["Tool power^1.3", "Сила инструмента^1.3", Math.pow(tool, 1.3)], [`AGI (${num(a)})^0.6`, `Ловкость (${num(a)})^0.6`, Math.pow(a * t, .6) * t2], ["Stamps", "Штампы", M.stamp("BaseCatchEff")], ["All skills base", "База всех навыков", allBase]];
     mults = [["Catching level / 200", "Уровень ловли / 200", 1 + lv / 200], ["AGI curve", "Кривая ловкости", 1 + Math.pow(a * t / 100, .35) * t2],
-      ["Cards, vials, gear, achievement 351", "Карты, флаконы, снаряжение, достижение 351", 1 + (M.card(32) + M.vial("CatchEff") + M.etc("18") + 10 * M.ach(351) + M.set("PLATINUM_SET")) / 100],
+      ["Cards, vials, gear, achievement 351", "Карты, флаконы, снаряжение, достижение 351", 1 + (M.card(32) + M.vial("CatchEff") + M.etc("18") + 10 * M.ach(351) + M.set("PLATINUM_SET") + M.monument(1, 0)) / 100],
       ["Star signs", "Знаки зодиака", 1 + M.sign("CatchingEff") / 100], ["Talent 295 × (atom + log oak logs)", "Талант 295 × (атом + log дуба)", 1 + T(1, 295) * (atomBonus(1) + getLOG(ownedItem("OakTree"))) / 100],
       ["Tool power % + achievement 74", "Сила инструмента % + достижение 74", 1 + (tool + Math.min(5, 5 * M.ach(74))) / 100], ["Talent 263", "Талант 263", 1 + T(1, 263) / 100]];
   }
@@ -1109,7 +1120,7 @@ function dmgFormula(){   // DamageDealed("Max"): max damage = base × percent pa
   const m2 = [
     ["Vial 7dmg", "Флакон 7dmg", 1 + M.vial("7dmg") / 100], ["Equinox dream 6", "Сон равноденствия 6", 1 + M.dream(6) / 10], ["Pristine charm 0", "Безупречный амулет 0", 1 + M.pristine(0) / 100],
     ["Star signs, best talents 507/50", "Знаки, лучшие таланты 507/50", 1 + (M.sign("PctDmg") + Math.max(0, at(A("Divinity"), 25) - 10) * M.getbonus2(507) + Math.floor(Math.max(0, M.lv - 200) / 50) * M.getbonus2(50)) / 100],
-    ["Grimoire 35, shrine, family 20, vault 41", "Гримуар 35, святилище, семья 20, хранилище 41", 1 + (M.grim(35) + M.shrine(0) + M.fam(20) + M.vault(41) * getLOG(M.ola(346))) / 100],
+    ["Grimoire 35, shrine, family 20, vault 41", "Гримуар 35, святилище, семья 20, хранилище 41", 1 + (M.grim(35) + M.shrine(0) + M.monument(0, 6) + M.fam(20) + M.vault(41) * getLOG(M.ola(346))) / 100],
     ["Bubbles pctDmg and per 250 stats", "Пузыри pctDmg и за каждые 250 статов", 1 + ((M.bubble("pctDmg1") || 0) + (M.bubble("pctDmg2") || 0) + (M.bubble("pctDmg3") || 0) + (M.bubble("W5") || 0) * Math.floor(Math.max(statFormula("STR").total, statFormula("LUK").total) / 250) + (M.bubble("A5") || 0) * Math.floor(statFormula("AGI").total / 250) + (M.bubble("M5") || 0) * Math.floor(statFormula("WIS").total / 250) + M.ola(419)) / 100],
     ["Talent 6, salt lick 9, gear, prayer 15, arcade 46, option 435", "Талант 6, солонец 9, снаряжение, молитва 15, аркада 46, опция 435", 1 + (T(1, 6) + M.salt(9) + M.etc("45") + M.prayer(15, 0) + M.arcade(46) + M.ola(435)) / 100],
     ["Companions 10, 156, cards, card set", "Компаньоны 10, 156, карты, набор карт", 1 + (M.comp(10) + M.comp(156) + M.card(42) + M.cardSet(5)) / 100],

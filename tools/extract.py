@@ -150,6 +150,9 @@ def game_model(njs, it):
         "statue": [fnum(r[3]) for r in L("StatueInfo")],
         "salt": [fnum(r[3]) for r in L("SaltLicks")],
         "bribe": [fnum(r[5]) for r in L("BribeDescriptions")],
+        # W5 caverns monuments: MonumentROGbonuses(t,i) base = HolesInfo[37][10t+i]; cosmos 0/0; fountain upgrade 13 per water
+        "mon": [fnum(x) for x in L("HolesInfo")[37]], "cosmo00": fnum(L("CosmoUpgrades")[0][0][0]),
+        "fount13": [fnum(L("HoleFountUPG")[t][13][6]) for t in range(3)],
         # CustomMaps.EquipmentSets: NAME -> [parts..., [needTools, needWeapon, bonus, text]]; GetSetBonus(NAME,"Bonus") = [3][2]
         "sets": {k: fnum(v) for k, v in re.findall(r'e\.h\.(\w+_SET)=\[.*?\["\d+","\d+","([\d.]+)"', njs[njs.find(".EquipmentSets=function"):njs.find(".EquipmentSets=function") + 20000])},
         "gear": gear,
